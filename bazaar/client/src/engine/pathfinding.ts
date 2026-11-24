@@ -9,9 +9,9 @@ export interface Point {
 }
 
 export class GridPathfinder {
-  private width: number;
-  private height: number;
-  private grid: number[][]; // 0: blocked, 1: road, 2: sidewalk
+  public width: number;
+  public height: number;
+  public grid: number[][]; // 0: blocked, 1: road, 2: sidewalk
 
   constructor(width: number, height: number) {
     this.width = width;
@@ -33,20 +33,36 @@ export class GridPathfinder {
   }
 
   /**
+   * Find nearest walkable neighbor or nearest walkable tile in radius
+   */
+  public findNearestWalkable(pt: Point, radius: number = 3): Point {
+    if (this.isWalkable(pt.x, pt.y)) return pt;
+
+    for (let r = 1; r <= radius; r++) {
+      for (let dy = -r; dy <= r; dy++) {
+        for (let dx = -r; dx <= r; dx++) {
+          const nx = pt.x + dx;
+          const ny = pt.y + dy;
+          if (this.isWalkable(nx, ny)) {
+            return { x: nx, y: ny };
+          }
+        }
+      }
+    }
+    // Default fallback to center crossroads
+    return { x: 13, y: 13 };
+  }
+
+  /**
    * Fast A* algorithm returning array of grid coordinates [start, ..., goal]
    */
   public findPath(start: Point, goal: Point): Point[] {
-    if (!this.isWalkable(goal.x, goal.y)) {
-      // Find nearest walkable neighbor to goal
-      const neighbors = this.getWalkableNeighbors(goal);
-      if (neighbors.length > 0) {
-        goal = neighbors[0];
-      } else {
-        return [start];
-      }
-    }
+    const safeStart = this.findNearestWalkable(start);
+    const safeGoal = this.findNearestWalkable(goal);
 
-    if (start.x === goal.x && start.y === goal.y) return [start];
+    if (safeStart.x === safeGoal.x && safeStart.y === safeGoal.y) {
+      return [safeStart];
+    }
 
     const openSet: { pt: Point; f: number; g: number }[] = [];
     const cameFrom: Map<string, Point> = new Map();
@@ -55,16 +71,17 @@ export class GridPathfinder {
     const key = (p: Point) => `${p.x},${p.y}`;
     const h = (a: Point, b: Point) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 
-    gScore.set(key(start), 0);
-    openSet.push({ pt: start, f: h(start, goal), g: 0 });
+    gScore.set(key(safeStart), 0);
+    openSet.push({ pt: safeStart, f: h(safeStart, safeGoal), g: 0 });
 
-    while (openSet.length > 0) {
-      // Pick lowest f score
+    const maxIterations = 600;
+    let iterations = 0;
+
+    while (openSet.length > 0 && iterations++ < maxIterations) {
       openSet.sort((a, b) => a.f - b.f);
       const current = openSet.shift()!.pt;
 
-      if (current.x === goal.x && current.y === goal.y) {
-        // Reconstruct path
+      if (current.x === safeGoal.x && current.y === safeGoal.y) {
         const path: Point[] = [current];
         let currKey = key(current);
         while (cameFrom.has(currKey)) {
@@ -83,8 +100,7 @@ export class GridPathfinder {
         if (tentativeG < (gScore.get(nextKey) ?? Infinity)) {
           cameFrom.set(nextKey, current);
           gScore.set(nextKey, tentativeG);
-          const f = tentativeG + h(next, goal);
-
+          const f = tentativeG + h(next, safeGoal);
           if (!openSet.some((item) => item.pt.x === next.x && item.pt.y === next.y)) {
             openSet.push({ pt: next, f, g: tentativeG });
           }
@@ -92,20 +108,21 @@ export class GridPathfinder {
       }
     }
 
-    return [start];
+    // Direct fallback path if no obstacle-free path found
+    return [safeStart, { x: 13, y: 13 }, safeGoal];
   }
 
-  private getWalkableNeighbors(pt: Point): Point[] {
-    const res: Point[] = [];
+  private getWalkableNeighbors(p: Point): Point[] {
     const dirs = [
-      { x: 1, y: 0 },
-      { x: -1, y: 0 },
-      { x: 0, y: 1 },
       { x: 0, y: -1 },
+      { x: 0, y: 1 },
+      { x: -1, y: 0 },
+      { x: 1, y: 0 },
     ];
+    const res: Point[] = [];
     for (const d of dirs) {
-      const nx = pt.x + d.x;
-      const ny = pt.y + d.y;
+      const nx = p.x + d.x;
+      const ny = p.y + d.y;
       if (this.isWalkable(nx, ny)) {
         res.push({ x: nx, y: ny });
       }

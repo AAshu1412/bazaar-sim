@@ -19,6 +19,9 @@ import {
   Landmark,
   Shield,
   Layers,
+  BarChart3,
+  Globe2,
+  Users,
 } from "lucide-react";
 import { IsometricEngineV3, PlotInfo } from "./engine/IsometricEngineV3";
 import { EventBanner } from "./components/EventBanner";
@@ -30,6 +33,9 @@ import { IntelModal } from "./components/IntelModal";
 import { UncleRaviOverlay } from "./components/UncleRaviOverlay";
 import { DemoDirectorToolbar } from "./components/DemoDirectorToolbar";
 import { PlotInspector } from "./components/PlotInspector";
+import { GuidedTour } from "./components/GuidedTour";
+import { MultiplayerLobbyModal } from "./components/MultiplayerLobbyModal";
+import { StatusBoardModal } from "./components/StatusBoardModal";
 import { useGameStore } from "./store/gameStore";
 import { sfx } from "./audio/sfx";
 
@@ -51,6 +57,10 @@ export const App: React.FC = () => {
   const [reputation, setReputation] = useState<number>(45);
   const [netWorthGd, setNetWorthGd] = useState<number>(18450);
   const [cashGd, setCashGd] = useState<number>(10000);
+  const [customersServedToday, setCustomersServedToday] = useState<number>(0);
+  const [revenueTodayCents, setRevenueTodayCents] = useState<number>(0);
+
+  // Modals & Panels
   const [isBankOpen, setIsBankOpen] = useState<boolean>(false);
   const [isIntelOpen, setIsIntelOpen] = useState<boolean>(false);
   const [isDirectorOpen, setIsDirectorOpen] = useState<boolean>(false);
@@ -58,7 +68,19 @@ export const App: React.FC = () => {
   const [solPumpChange, setSolPumpChange] = useState<number>(0);
   const [uncleRaviStage, setUncleRaviStage] = useState<number>(0);
   const [showUncleRavi, setShowUncleRavi] = useState<boolean>(false);
+  const [showGuidedTour, setShowGuidedTour] = useState<boolean>(false);
+  const [showMultiplayerLobby, setShowMultiplayerLobby] = useState<boolean>(false);
+  const [showStatusBoard, setShowStatusBoard] = useState<boolean>(false);
   const [selectedPlot, setSelectedPlot] = useState<PlotInfo | null>(null);
+
+  // Auto-launch Guided Tour on First Visit
+  useEffect(() => {
+    const hasSeenTour = localStorage.getItem("bazaar_seen_tour_v2");
+    if (!hasSeenTour) {
+      setShowGuidedTour(true);
+      localStorage.setItem("bazaar_seen_tour_v2", "true");
+    }
+  }, []);
 
   // Mount 28x28 IsometricEngineV3 Canvas
   useEffect(() => {
@@ -81,12 +103,22 @@ export const App: React.FC = () => {
       else if (modal === "intel") setIsIntelOpen(true);
       else if (modal === "uncleRavi") setShowUncleRavi(true);
       else if (modal === "manager") setIsDirectorOpen(true);
-      else if (modal === "spectator") {
+      else if (modal === "spectator") setShowStatusBoard(true);
+    };
+
+    // Customer served callback for real P&L updates
+    engine.onCustomerServed = (plotId: number, priceCents: number) => {
+      if (plotId === 0) {
+        setCustomersServedToday((prev) => prev + 1);
+        setRevenueTodayCents((prev) => prev + priceCents);
+        setCashGd((prev) => prev + Math.round(priceCents / 100));
+        setNetWorthGd((prev) => prev + Math.round(priceCents / 100));
+
         addLedgerItem({
           type: "TICK",
-          message: "Spectator Hall: Street Market index +4.8% on MagicBlock Blvd volume",
-          signature: "4vK9...spectator",
-          latencyMs: 14,
+          message: `Customer served at Corner Roast: +$${(priceCents / 100).toFixed(2)}`,
+          signature: "7aM9...retailSale",
+          latencyMs: 18,
           network: "ER",
         });
       }
@@ -97,12 +129,12 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // Continuous NPC customer generator towards active plots
+  // Guaranteed Continuous NPC customer generator (1.1s ticks)
   useEffect(() => {
     const spawner = setInterval(() => {
       if (!engineRef.current) return;
       engineRef.current.spawnCustomer();
-    }, 1200);
+    }, 1100);
 
     return () => clearInterval(spawner);
   }, []);
@@ -202,6 +234,20 @@ export const App: React.FC = () => {
     });
     sfx.playPriceClick();
   };
+
+  // Stalls Leaderboard for Status Board
+  const stallsLeaderboard = (engineRef.current?.plots || [])
+    .filter((p) => p.ownerType !== "unclaimed")
+    .map((p) => ({
+      name: p.streetName + " Stall",
+      owner: p.owner || "Merchant",
+      priceCents: p.priceCents,
+      inventory: p.inventory,
+      customersServed: p.customersServed,
+      revenueCents: p.revenueTodayCents,
+      isPlayer: p.ownerType === "player",
+    }))
+    .sort((a, b) => b.revenueCents - a.revenueCents);
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-[#090d16] text-[#f7f0e3] select-none font-sans">
@@ -307,6 +353,24 @@ export const App: React.FC = () => {
           </div>
 
           <button
+            onClick={() => setShowMultiplayerLobby(true)}
+            title="Multiplayer World & Bot Backfill"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 rounded-xl text-xs font-bold transition-all"
+          >
+            <Globe2 className="w-3.5 h-3.5" />
+            <span>World</span>
+          </button>
+
+          <button
+            onClick={() => setShowStatusBoard(true)}
+            title="Status Board & P&L Dashboard"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold transition-all"
+          >
+            <BarChart3 className="w-3.5 h-3.5" />
+            <span>P&L</span>
+          </button>
+
+          <button
             onClick={toggleSound}
             title="Toggle Sound Effects"
             className="p-2 text-gray-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors"
@@ -322,6 +386,33 @@ export const App: React.FC = () => {
 
       {/* LEFT DOCK: Slim Quick-Access Icon Rail */}
       <nav className="fixed left-4 top-24 z-30 pointer-events-auto flex flex-col gap-2.5 bg-[#1c1815]/92 border border-[#d4a359]/35 p-2 rounded-2xl shadow-2xl backdrop-blur-md">
+        <button
+          onClick={handleFocusPlayerPlot}
+          title="Center on My Shop (Plot #0)"
+          className="p-2.5 bg-[#10b981]/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-500/40 rounded-xl transition-all group flex flex-col items-center"
+        >
+          <Crosshair className="w-4 h-4" />
+          <span className="text-[9px] font-mono mt-0.5 group-hover:block hidden">My Shop</span>
+        </button>
+
+        <button
+          onClick={() => setShowStatusBoard(true)}
+          title="Status Board & P&L Dashboard"
+          className="p-2.5 bg-[#d4a359]/15 hover:bg-amber-600/30 text-amber-400 border border-[#d4a359]/25 hover:border-amber-500/50 rounded-xl transition-all group flex flex-col items-center"
+        >
+          <BarChart3 className="w-4 h-4" />
+          <span className="text-[9px] font-mono mt-0.5 group-hover:block hidden">P&L</span>
+        </button>
+
+        <button
+          onClick={() => setShowMultiplayerLobby(true)}
+          title="Multiplayer Season World"
+          className="p-2.5 bg-[#d4a359]/15 hover:bg-indigo-600/30 text-indigo-400 border border-[#d4a359]/25 hover:border-indigo-500/50 rounded-xl transition-all group flex flex-col items-center"
+        >
+          <Globe2 className="w-4 h-4" />
+          <span className="text-[9px] font-mono mt-0.5 group-hover:block hidden">World</span>
+        </button>
+
         <button
           onClick={() => setIsBankOpen(true)}
           title="First District Bank (Loans & Vaults)"
@@ -347,6 +438,15 @@ export const App: React.FC = () => {
         >
           <Eye className="w-4 h-4" />
           <span className="text-[9px] font-mono mt-0.5 group-hover:block hidden">Intel</span>
+        </button>
+
+        <button
+          onClick={() => setShowGuidedTour(true)}
+          title="Interactive 0-to-100 Guided Tour"
+          className="p-2.5 bg-[#d4a359]/15 hover:bg-amber-600/30 text-amber-300 border border-[#d4a359]/25 hover:border-amber-500/50 rounded-xl transition-all group flex flex-col items-center"
+        >
+          <Sparkles className="w-4 h-4" />
+          <span className="text-[9px] font-mono mt-0.5 group-hover:block hidden">Tour</span>
         </button>
 
         <button
@@ -398,11 +498,11 @@ export const App: React.FC = () => {
           </button>
           <button
             onClick={handleFocusPlayerPlot}
-            title="Center on My Stall (Plot #0)"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#d4a359]/20 hover:bg-[#d4a359]/30 text-amber-300 border border-[#d4a359]/40 rounded-xl text-xs font-bold transition-all"
+            title="Center on My Shop (Plot #0)"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#10b981]/25 hover:bg-[#10b981]/35 text-emerald-300 border border-emerald-500/50 rounded-xl text-xs font-bold transition-all"
           >
             <Crosshair className="w-3.5 h-3.5" />
-            <span>My Stall</span>
+            <span>My Shop</span>
           </button>
           <button
             onClick={handleResetCamera}
@@ -440,6 +540,45 @@ export const App: React.FC = () => {
         reputation={reputation}
       />
       <IntelModal isOpen={isIntelOpen} onClose={() => setIsIntelOpen(false)} />
+      <GuidedTour
+        isOpen={showGuidedTour}
+        onClose={() => setShowGuidedTour(false)}
+        onFocusPlot={handleFocusPlayerPlot}
+        onOpenBank={() => setIsBankOpen(true)}
+        onOpenAuction={() => useGameStore.setState({ auctionActive: true })}
+        onReprice={(price) => handleRepricePlot(0, price)}
+      />
+      <MultiplayerLobbyModal
+        isOpen={showMultiplayerLobby}
+        onClose={() => setShowMultiplayerLobby(false)}
+        worldId="season-alpha-1"
+        onJoinWorld={(id) => {
+          addLedgerItem({
+            type: "TICK",
+            message: `Switched to world ${id} on MagicBlock Ephemeral Rollup`,
+            signature: "3vK8...worldJoin",
+            latencyMs: 22,
+            network: "ER",
+          });
+          setShowMultiplayerLobby(false);
+        }}
+        humanPlayersCount={2}
+        botPlayersCount={2}
+        isEphemeralRollupActive={true}
+      />
+      <StatusBoardModal
+        isOpen={showStatusBoard}
+        onClose={() => setShowStatusBoard(false)}
+        day={day}
+        cashGd={cashGd}
+        netWorthGd={netWorthGd}
+        reputation={reputation}
+        customersServedToday={customersServedToday}
+        revenueTodayCents={revenueTodayCents}
+        wholesaleExpensesCents={500}
+        rentExpensesCents={400}
+        stallsLeaderboard={stallsLeaderboard}
+      />
       {showUncleRavi && (
         <UncleRaviOverlay
           currentStage={uncleRaviStage}
