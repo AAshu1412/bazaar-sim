@@ -1,0 +1,462 @@
+import React, { useEffect, useRef, useState } from "react";
+import {
+  Volume2,
+  VolumeX,
+  Building2,
+  Eye,
+  TrendingUp,
+  Sparkles,
+  Bot,
+  Play,
+  Briefcase,
+  Crosshair,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw,
+  Sliders,
+  DollarSign,
+  HelpCircle,
+  Landmark,
+  Shield,
+  Layers,
+} from "lucide-react";
+import { IsometricEngineV3, PlotInfo } from "./engine/IsometricEngineV3";
+import { EventBanner } from "./components/EventBanner";
+import { AuctionModal } from "./components/AuctionModal";
+import { CityLedger } from "./components/CityLedger";
+import { ResultsModal } from "./components/ResultsModal";
+import { BankModal } from "./components/BankModal";
+import { IntelModal } from "./components/IntelModal";
+import { UncleRaviOverlay } from "./components/UncleRaviOverlay";
+import { DemoDirectorToolbar } from "./components/DemoDirectorToolbar";
+import { PlotInspector } from "./components/PlotInspector";
+import { useGameStore } from "./store/gameStore";
+import { sfx } from "./audio/sfx";
+
+export const App: React.FC = () => {
+  const {
+    stalls,
+    localPlayerIndex,
+    remainingSeconds,
+    soundEnabled,
+    toggleSound,
+    addLedgerItem,
+  } = useGameStore();
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const engineRef = useRef<IsometricEngineV3 | null>(null);
+
+  // v2 Tycoon State
+  const [day, setDay] = useState<number>(1);
+  const [reputation, setReputation] = useState<number>(45);
+  const [netWorthGd, setNetWorthGd] = useState<number>(18450);
+  const [cashGd, setCashGd] = useState<number>(10000);
+  const [isBankOpen, setIsBankOpen] = useState<boolean>(false);
+  const [isIntelOpen, setIsIntelOpen] = useState<boolean>(false);
+  const [isDirectorOpen, setIsDirectorOpen] = useState<boolean>(false);
+  const [isNight, setIsNight] = useState<boolean>(false);
+  const [solPumpChange, setSolPumpChange] = useState<number>(0);
+  const [uncleRaviStage, setUncleRaviStage] = useState<number>(0);
+  const [showUncleRavi, setShowUncleRavi] = useState<boolean>(false);
+  const [selectedPlot, setSelectedPlot] = useState<PlotInfo | null>(null);
+
+  // Mount 28x28 IsometricEngineV3 Canvas
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const engine = new IsometricEngineV3();
+    engine.init(containerRef.current);
+    engineRef.current = engine;
+
+    // Connect Plot Click to slide-over inspector
+    engine.onPlotClick = (plot: PlotInfo) => {
+      setSelectedPlot(plot);
+      sfx.playPriceClick();
+    };
+
+    // Connect Landmark Click to corresponding modal
+    engine.onLandmarkClick = (modal: string) => {
+      sfx.playPriceClick();
+      if (modal === "bank") setIsBankOpen(true);
+      else if (modal === "auction") useGameStore.setState({ auctionActive: true });
+      else if (modal === "intel") setIsIntelOpen(true);
+      else if (modal === "uncleRavi") setShowUncleRavi(true);
+      else if (modal === "manager") setIsDirectorOpen(true);
+      else if (modal === "spectator") {
+        addLedgerItem({
+          type: "TICK",
+          message: "Spectator Hall: Street Market index +4.8% on MagicBlock Blvd volume",
+          signature: "4vK9...spectator",
+          latencyMs: 14,
+          network: "ER",
+        });
+      }
+    };
+
+    return () => {
+      engine.destroy();
+    };
+  }, []);
+
+  // Continuous NPC customer generator towards active plots
+  useEffect(() => {
+    const spawner = setInterval(() => {
+      if (!engineRef.current) return;
+      engineRef.current.spawnCustomer();
+    }, 1200);
+
+    return () => clearInterval(spawner);
+  }, []);
+
+  // Day countdown timer
+  useEffect(() => {
+    const timer = setInterval(() => {
+      useGameStore.setState((prev) => {
+        if (prev.remainingSeconds <= 1) {
+          return { remainingSeconds: 300, tick: prev.tick + 1 };
+        }
+        return { remainingSeconds: prev.remainingSeconds - 1, tick: prev.tick + 1 };
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // Camera Controls
+  const handleZoomIn = () => engineRef.current?.zoomIn();
+  const handleZoomOut = () => engineRef.current?.zoomOut();
+  const handleResetCamera = () => engineRef.current?.resetCamera();
+  const handleFocusPlayerPlot = () => engineRef.current?.focusPlayerPlot();
+
+  // Demo Director Handlers
+  const handleToggleNight = () => {
+    const newNight = !isNight;
+    setIsNight(newNight);
+    engineRef.current?.setNightMode(newNight);
+    addLedgerItem({
+      type: "TICK",
+      message: newNight
+        ? "🌙 Overnight phase active: Autonomous Managers trading on 10s ticks"
+        : "☀️ Daylight: Market hours active on 1s ticks",
+      signature: "3mP9...crankPhase",
+      latencyMs: 25,
+      network: "ER",
+    });
+    sfx.playPriceClick();
+  };
+
+  const handleSimulateSolPump = () => {
+    const newPump = solPumpChange === 0 ? 5.2 : 0;
+    setSolPumpChange(newPump);
+    if (newPump > 0) {
+      addLedgerItem({
+        type: "VRF",
+        message: "Pyth Lazer feed: SOL +5.2% 1h pump → Electronics demand scaled +26%",
+        signature: "8qW2...pythFeed",
+        latencyMs: 12,
+        network: "ER",
+      });
+      sfx.playVrfAlert();
+    }
+  };
+
+  const handleTriggerMarginCall = () => {
+    addLedgerItem({
+      type: "AUCTION",
+      message: "⚠️ Margin call triggered on Rival #2 (LTV 85%). Dutch Auction liquidation pending.",
+      signature: "9xZ4...marginCall",
+      latencyMs: 19,
+      network: "ER",
+    });
+    sfx.playGavel();
+  };
+
+  const handleFastForwardDay = () => {
+    setDay((prev) => Math.min(7, prev + 1));
+    setReputation((prev) => Math.min(100, prev + 15));
+    setCashGd((prev) => prev + 2400);
+    setNetWorthGd((prev) => prev + 3500);
+    addLedgerItem({
+      type: "TICK",
+      message: `Day ${day + 1} Opening Bell: Rent collected, plot auctions initialized on Private ER`,
+      signature: "2vB8...openDayCrank",
+      latencyMs: 38,
+      network: "PER",
+    });
+    sfx.playChing();
+  };
+
+  // Reprice Plot via Session Key
+  const handleRepricePlot = (plotId: number, newPriceCents: number) => {
+    if (engineRef.current) {
+      engineRef.current.updatePlotData(plotId, { priceCents: newPriceCents });
+      if (selectedPlot && selectedPlot.id === plotId) {
+        setSelectedPlot({ ...selectedPlot, priceCents: newPriceCents });
+      }
+    }
+    addLedgerItem({
+      type: "PRICE",
+      message: `Stall #${plotId} repriced to $${(newPriceCents / 100).toFixed(2)} via Session Key`,
+      signature: "5aR1...sessionKey",
+      latencyMs: 16,
+      network: "ER",
+    });
+    sfx.playPriceClick();
+  };
+
+  return (
+    <div className="relative w-screen h-screen overflow-hidden bg-[#090d16] text-[#f7f0e3] select-none font-sans">
+      {/* 2.5D Isometric Diorama Fullscreen Canvas */}
+      <div
+        ref={containerRef}
+        className="fixed inset-0 w-full h-full z-0 cursor-grab active:cursor-grabbing"
+      />
+
+      {/* TOP FLOATING BAR: Gilded Merchant Guild Header */}
+      <header className="fixed top-3 left-4 right-4 z-30 pointer-events-none flex items-center justify-between">
+        {/* Left Badge: Title & Season Day */}
+        <div className="pointer-events-auto flex items-center gap-3 bg-[#1c1815]/92 border border-[#d4a359]/35 px-4 py-2.5 rounded-2xl shadow-2xl backdrop-blur-md">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl filter drop-shadow">🏛️</span>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <h1 className="font-serif font-black text-base tracking-wider text-amber-300 uppercase leading-none">
+                  Bazaar v2
+                </h1>
+                <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#d4a359]/20 text-[#d4a359] border border-[#d4a359]/40 font-mono font-bold">
+                  8 PRIMITIVES
+                </span>
+              </div>
+              <span className="text-[10px] text-gray-400 font-mono tracking-wider">
+                Grand District • Day {day}/7
+              </span>
+            </div>
+          </div>
+
+          <div className="h-6 w-[1px] bg-[#d4a359]/20 mx-1" />
+
+          {/* Day / Night Phase Indicator */}
+          <div className="flex items-center gap-2 text-xs font-mono">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                isNight ? "bg-indigo-400 animate-pulse" : "bg-emerald-400"
+              }`}
+            />
+            <span className="text-gray-300 font-bold">
+              {isNight ? "Overnight (10s)" : "Market Hours (1s)"}
+            </span>
+            <span className="text-amber-400 font-bold bg-[#120f0d] px-2 py-0.5 rounded border border-[#d4a359]/20">
+              {Math.floor(remainingSeconds / 60)}:
+              {(remainingSeconds % 60).toString().padStart(2, "0")}
+            </span>
+          </div>
+        </div>
+
+        {/* Center Badge: Season Net Worth & Cash */}
+        <div className="pointer-events-auto flex items-center gap-4 bg-[#1c1815]/92 border border-[#d4a359]/35 px-4 py-2 rounded-2xl shadow-2xl backdrop-blur-md">
+          <div className="flex items-center gap-2">
+            <Briefcase className="w-4 h-4 text-amber-400" />
+            <div>
+              <span className="text-[10px] text-gray-400 block font-sans">Net Worth</span>
+              <span className="font-mono font-black text-sm text-white">
+                {netWorthGd.toLocaleString()} <span className="text-[10px] text-amber-400">GD</span>
+              </span>
+            </div>
+          </div>
+
+          <div className="h-6 w-[1px] bg-[#d4a359]/20" />
+
+          <div className="flex items-center gap-2">
+            <DollarSign className="w-4 h-4 text-emerald-400" />
+            <div>
+              <span className="text-[10px] text-gray-400 block font-sans">Cash Reserve</span>
+              <span className="font-mono font-black text-sm text-emerald-400">
+                {cashGd.toLocaleString()} <span className="text-[10px]">GD</span>
+              </span>
+            </div>
+          </div>
+
+          <div className="h-6 w-[1px] bg-[#d4a359]/20" />
+
+          <div className="flex items-center gap-2">
+            <Shield className="w-4 h-4 text-indigo-400" />
+            <div>
+              <span className="text-[10px] text-gray-400 block font-sans">Reputation</span>
+              <span className="font-mono font-black text-sm text-indigo-300">
+                {reputation}/100
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Badge: Pyth Lazer Feed & Controls */}
+        <div className="pointer-events-auto flex items-center gap-2.5 bg-[#1c1815]/92 border border-[#d4a359]/35 p-1.5 rounded-2xl shadow-2xl backdrop-blur-md">
+          <div className="flex items-center gap-2 px-3 py-1 bg-[#120f0d] border border-[#d4a359]/20 rounded-xl text-xs font-mono">
+            <span className="text-gray-400">Pyth SOL:</span>
+            <span
+              className={`font-bold ${
+                solPumpChange > 0 ? "text-emerald-400 animate-pulse" : "text-gray-200"
+              }`}
+            >
+              $184.20 {solPumpChange > 0 && `(+${solPumpChange}%)`}
+            </span>
+            <TrendingUp
+              className={`w-3.5 h-3.5 ${
+                solPumpChange > 0 ? "text-emerald-400" : "text-gray-500"
+              }`}
+            />
+          </div>
+
+          <button
+            onClick={toggleSound}
+            title="Toggle Sound Effects"
+            className="p-2 text-gray-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors"
+          >
+            {soundEnabled ? (
+              <Volume2 className="w-4 h-4 text-emerald-400" />
+            ) : (
+              <VolumeX className="w-4 h-4 text-gray-500" />
+            )}
+          </button>
+        </div>
+      </header>
+
+      {/* LEFT DOCK: Slim Quick-Access Icon Rail */}
+      <nav className="fixed left-4 top-24 z-30 pointer-events-auto flex flex-col gap-2.5 bg-[#1c1815]/92 border border-[#d4a359]/35 p-2 rounded-2xl shadow-2xl backdrop-blur-md">
+        <button
+          onClick={() => setIsBankOpen(true)}
+          title="First District Bank (Loans & Vaults)"
+          className="p-2.5 bg-[#d4a359]/15 hover:bg-emerald-600/30 text-emerald-400 border border-[#d4a359]/25 hover:border-emerald-500/50 rounded-xl transition-all group flex flex-col items-center"
+        >
+          <Building2 className="w-4 h-4" />
+          <span className="text-[9px] font-mono mt-0.5 group-hover:block hidden">Bank</span>
+        </button>
+
+        <button
+          onClick={() => useGameStore.setState({ auctionActive: true })}
+          title="Auction House (Sealed-Bid Shipments)"
+          className="p-2.5 bg-[#d4a359]/15 hover:bg-amber-600/30 text-amber-400 border border-[#d4a359]/25 hover:border-amber-500/50 rounded-xl transition-all group flex flex-col items-center"
+        >
+          <Play className="w-4 h-4" />
+          <span className="text-[9px] font-mono mt-0.5 group-hover:block hidden">Auction</span>
+        </button>
+
+        <button
+          onClick={() => setIsIntelOpen(true)}
+          title="Intel Guild (Scouting & M&A Offers)"
+          className="p-2.5 bg-[#d4a359]/15 hover:bg-purple-600/30 text-purple-400 border border-[#d4a359]/25 hover:border-purple-500/50 rounded-xl transition-all group flex flex-col items-center"
+        >
+          <Eye className="w-4 h-4" />
+          <span className="text-[9px] font-mono mt-0.5 group-hover:block hidden">Intel</span>
+        </button>
+
+        <button
+          onClick={() => setShowUncleRavi(true)}
+          title="Uncle Ravi's Advice"
+          className="p-2.5 bg-[#d4a359]/15 hover:bg-orange-600/30 text-orange-400 border border-[#d4a359]/25 hover:border-orange-500/50 rounded-xl transition-all group flex flex-col items-center"
+        >
+          <HelpCircle className="w-4 h-4" />
+          <span className="text-[9px] font-mono mt-0.5 group-hover:block hidden">Guide</span>
+        </button>
+
+        <button
+          onClick={() => setIsDirectorOpen(!isDirectorOpen)}
+          title="Hackathon Demo Director Toolbar"
+          className="p-2.5 bg-[#d4a359]/15 hover:bg-indigo-600/30 text-indigo-400 border border-[#d4a359]/25 hover:border-indigo-500/50 rounded-xl transition-all group flex flex-col items-center"
+        >
+          <Sliders className="w-4 h-4" />
+          <span className="text-[9px] font-mono mt-0.5 group-hover:block hidden">Director</span>
+        </button>
+      </nav>
+
+      {/* TOP CENTER EVENT BANNER */}
+      <div className="fixed top-16 left-1/2 -translate-x-1/2 z-20 pointer-events-auto max-w-lg w-full px-4">
+        <EventBanner />
+      </div>
+
+      {/* BOTTOM FLOATING BAR: City Ledger Ticker + Camera Controls */}
+      <div className="fixed bottom-3 left-4 right-4 z-30 pointer-events-none flex items-end justify-between gap-4">
+        {/* City Ledger on Left */}
+        <div className="pointer-events-auto w-[620px] max-w-full rounded-2xl overflow-hidden shadow-2xl border border-[#d4a359]/35 bg-[#1c1815]/95 backdrop-blur-md">
+          <CityLedger />
+        </div>
+
+        {/* Camera Control Pill on Right */}
+        <div className="pointer-events-auto flex items-center gap-1.5 bg-[#1c1815]/92 border border-[#d4a359]/35 p-1.5 rounded-2xl shadow-2xl backdrop-blur-md">
+          <button
+            onClick={handleZoomIn}
+            title="Zoom In"
+            className="p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
+          >
+            <ZoomIn className="w-4 h-4" />
+          </button>
+          <button
+            onClick={handleZoomOut}
+            title="Zoom Out"
+            className="p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
+          >
+            <ZoomOut className="w-4 h-4" />
+          </button>
+          <button
+            onClick={handleFocusPlayerPlot}
+            title="Center on My Stall (Plot #0)"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#d4a359]/20 hover:bg-[#d4a359]/30 text-amber-300 border border-[#d4a359]/40 rounded-xl text-xs font-bold transition-all"
+          >
+            <Crosshair className="w-3.5 h-3.5" />
+            <span>My Stall</span>
+          </button>
+          <button
+            onClick={handleResetCamera}
+            title="Reset Diorama View"
+            className="p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
+          >
+            <RotateCcw className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Slide-over Right Plot Inspector */}
+      {selectedPlot && (
+        <PlotInspector
+          plot={selectedPlot}
+          onClose={() => setSelectedPlot(null)}
+          onReprice={handleRepricePlot}
+          onHireManager={() => {
+            setIsDirectorOpen(true);
+            sfx.playPriceClick();
+          }}
+          onScoutPlot={() => {
+            setIsIntelOpen(true);
+            sfx.playPriceClick();
+          }}
+        />
+      )}
+
+      {/* Modals & Overlays */}
+      <AuctionModal />
+      <ResultsModal />
+      <BankModal
+        isOpen={isBankOpen}
+        onClose={() => setIsBankOpen(false)}
+        reputation={reputation}
+      />
+      <IntelModal isOpen={isIntelOpen} onClose={() => setIsIntelOpen(false)} />
+      {showUncleRavi && (
+        <UncleRaviOverlay
+          currentStage={uncleRaviStage}
+          onAdvance={() => setUncleRaviStage((prev) => (prev < 2 ? prev + 1 : 0))}
+          onDismiss={() => setShowUncleRavi(false)}
+        />
+      )}
+      <DemoDirectorToolbar
+        isOpen={isDirectorOpen}
+        onToggle={() => setIsDirectorOpen(!isDirectorOpen)}
+        onToggleNight={handleToggleNight}
+        onSimulateSolPump={handleSimulateSolPump}
+        onTriggerMarginCall={handleTriggerMarginCall}
+        onFastForwardDay={handleFastForwardDay}
+        isNight={isNight}
+        solPriceChange={solPumpChange}
+      />
+    </div>
+  );
+};
