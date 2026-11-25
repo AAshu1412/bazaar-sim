@@ -8,7 +8,7 @@ export const ER_RPC_URL = "https://devnet.magicblock.app";
 export const PRIVATE_ER_RPC_URL = "https://devnet-per.magicblock.app";
 
 export const PROGRAM_ID = new PublicKey(
-  "394dL2jzTtXjc3tWKTL2cPYyS7rcADAM338FbVumWSSi"
+  "GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb"
 );
 
 const u64 = (n: number | bigint) => {

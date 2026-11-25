@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-bazaar = "394dL2jzTtXjc3tWKTL2cPYyS7rcADAM338FbVumWSSi"
+bazaar = "GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb"
 
 [registry]
 url = "https://api.apr.dev"

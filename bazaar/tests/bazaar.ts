@@ -13,7 +13,7 @@ describe("bazaar", () => {
   const program = anchor.workspace.bazaar as Program<Bazaar>;
 
   const PROGRAM_ID = new PublicKey(
-    "394dL2jzTtXjc3tWKTL2cPYyS7rcADAM338FbVumWSSi"
+    "GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb"
   );
 
   // Round parameters

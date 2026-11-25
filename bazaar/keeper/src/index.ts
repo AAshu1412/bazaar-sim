@@ -20,7 +20,7 @@ dotenv.config();
 // CONSTANTS (mirrors on-chain lib.rs)
 // ═══════════════════════════════════════════════════════════════
 
-const PROGRAM_ID = new PublicKey("394dL2jzTtXjc3tWKTL2cPYyS7rcADAM338FbVumWSSi");
+const PROGRAM_ID = new PublicKey("GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb");
 
 const MAX_PLAYERS = 4;
 const ROUND_DURATION = 300; // 5 minutes

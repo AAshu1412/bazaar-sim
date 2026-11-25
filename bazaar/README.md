@@ -18,7 +18,7 @@
 - **The town's customers pay for real.** Each simulated customer who buys from your shop becomes a `serve_customers` call that moves `price x n` GD from the treasury (10M GD minted at season creation) to you and takes stock. Your balance rises with sales and falls with restocking and upgrades.
 - Other shops on the map are still simulated bots; only your shop is on-chain.
 
-Deploy notes: build with `yarn build` (SBPF v0; v3 is not active on devnet/mainnet), then `solana program extend <ID> 140000 -u devnet` once (the binary grew), then `solana program deploy target/deploy/bazaar.so --program-id <ID> -u devnet`. After changing the program run `node client/scripts/gen-idl-spec.mjs`.
+Deploy notes: program ID is `GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb` (the earlier `394dL2jz…` deployment belongs to another upgrade authority). Build with `yarn build` (SBPF v0; v3 is not active on devnet/mainnet), then first deploy: `solana program deploy target/deploy/bazaar.so --program-id target/deploy/bazaar-keypair.json -u devnet`. Later upgrades: `solana program deploy target/deploy/bazaar.so --program-id GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb -u devnet` (run `solana program extend` first if the binary grew). After changing the program run `node client/scripts/gen-idl-spec.mjs`.
 
 ---
 

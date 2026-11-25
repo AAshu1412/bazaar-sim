@@ -10,7 +10,7 @@ pub mod utils;
 use instructions::*;
 use state::*;
 
-declare_id!("394dL2jzTtXjc3tWKTL2cPYyS7rcADAM338FbVumWSSi");
+declare_id!("GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb");
 
 #[program]
 pub mod bazaar {
