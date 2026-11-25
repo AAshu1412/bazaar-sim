@@ -4,7 +4,9 @@ import { Buffer } from "buffer";
 // VITE_RPC_URL lets you point the game at a local validator for testing
 export const DEVNET_RPC_URL: string =
   (import.meta as any).env?.VITE_RPC_URL ?? "https://api.devnet.solana.com";
-export const ER_RPC_URL = "https://devnet.magicblock.app";
+// VITE_ER_URL points the game at a local ephemeral validator (or another region) for testing
+export const ER_RPC_URL: string = (import.meta as any).env?.VITE_ER_URL ?? "https://devnet.magicblock.app";
+export const ER_ENABLED: boolean = (import.meta as any).env?.VITE_ER !== "off";
 export const PRIVATE_ER_RPC_URL = "https://devnet-per.magicblock.app";
 
 export const PROGRAM_ID = new PublicKey(

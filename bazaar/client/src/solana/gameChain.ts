@@ -9,7 +9,11 @@ import {
 } from "@solana/web3.js";
 import { Buffer } from "buffer";
 import { HermesClient } from "@pythnetwork/hermes-client";
-import { PROGRAM_ID, router } from "./router";
+import {
+  DELEGATION_PROGRAM_ID, MAGIC_PROGRAM_ID, MAGIC_CONTEXT_ID,
+  delegateBufferPdaFromDelegatedAccountAndOwnerProgram, delegationRecordPdaFromDelegatedAccount, delegationMetadataPdaFromDelegatedAccount,
+} from "@magicblock-labs/ephemeral-rollups-sdk";
+import { PROGRAM_ID, router, ER_ENABLED } from "./router";
 import { IX } from "./idlSpec";
 import { SOL_FEED_ID, BTC_FEED_ID, hermesUrl } from "./pyth";
 
@@ -44,6 +48,11 @@ export interface ChainState {
   lifetimeRevenueGd: number;
   customersServed: number;
   pendingSales: number;
+  /** shop is delegated to an Ephemeral Rollup: hot-path transactions run there */
+  erMode: boolean;
+  settling: boolean;
+  /** GD earned/spent in the rollup that has not been settled to the token account yet */
+  unsettledGd: number;
   detail?: string;
 }
 export interface AuctionOutcome {
@@ -53,7 +62,7 @@ export interface AuctionOutcome {
   rivalsGd: [number, number, number];
   signature: string;
 }
-export interface TxLog { message: string; signature: string; latencyMs: number; isLive: boolean }
+export interface TxLog { message: string; signature: string; latencyMs: number; isLive: boolean; er?: boolean }
 type Log = (kind: "PRICE" | "TICK" | "AUCTION" | "VRF" | "SETTLE", r: TxLog) => void;
 
 const u64 = (n: bigint | number) => { const b = Buffer.alloc(8); b.writeBigUInt64LE(BigInt(n)); return b; };
@@ -61,7 +70,7 @@ const u32 = (n: number) => { const b = Buffer.alloc(4); b.writeUInt32LE(n); retu
 const u16 = (n: number) => { const b = Buffer.alloc(2); b.writeUInt16LE(n); return b; };
 const i64 = (n: number | bigint) => { const b = Buffer.alloc(8); b.writeBigInt64LE(BigInt(n)); return b; };
 
-const EMPTY: ChainState = { phase: "disconnected", sessionSol: 0, gd: 0, inventory: 0, priceCents: 275, pendingPrice: null, unitCostCents: 137, upgrades: 0, lifetimeRevenueGd: 0, customersServed: 0, pendingSales: 0 };
+const EMPTY: ChainState = { phase: "disconnected", sessionSol: 0, gd: 0, inventory: 0, priceCents: 275, pendingPrice: null, unitCostCents: 137, upgrades: 0, lifetimeRevenueGd: 0, customersServed: 0, pendingSales: 0, erMode: false, settling: false, unsettledGd: 0 };
 
 export class GameChain {
   private conn: Connection = router.baseConn;
@@ -78,6 +87,7 @@ export class GameChain {
   private queue: Promise<unknown> = Promise.resolve();
   private log: Log = () => {};
   private runId = 0;
+  private lastSendWasEr = false;
 
   // ---------- PDAs ----------
   private pda = (seeds: (Buffer | Uint8Array)[], program = PROGRAM_ID) => PublicKey.findProgramAddressSync(seeds, program)[0];
@@ -88,6 +98,7 @@ export class GameChain {
   get playerGd() { return this.pda([Buffer.from("gd"), this.season.toBuffer(), this.authority.toBuffer()]); }
   get plot() { return this.pda([Buffer.from("plot"), this.season.toBuffer(), u16(PLOT_ID)]); }
   get business() { return this.pda([Buffer.from("business"), this.plot.toBuffer()]); }
+  get ledger() { return this.pda([Buffer.from("ledger"), this.business.toBuffer()]); }
   get signals() { return this.pda([Buffer.from("signals"), this.season.toBuffer()]); }
   get sessionToken() {
     return this.pda([Buffer.from("session_token"), PROGRAM_ID.toBuffer(), this.session!.publicKey.toBuffer(), this.authority.toBuffer()], SESSION_PROGRAM_ID);
@@ -115,20 +126,31 @@ export class GameChain {
       season: this.season, authority: this.authority, session_token: this.sessionToken, signer: this.session!.publicKey,
       token_program: TOKEN_PROGRAM_ID, system_program: SystemProgram.programId, treasury: this.treasury,
       gd_mint: this.gdMint, player_gd: this.playerGd, owner_gd: this.playerGd, player: this.playerPda,
-      plot: this.plot, business: this.business, ...extra,
+      plot: this.plot, business: this.business, ledger: this.ledger, payer: this.session!.publicKey,
+      buffer_business: delegateBufferPdaFromDelegatedAccountAndOwnerProgram(this.business, PROGRAM_ID),
+      delegation_record_business: delegationRecordPdaFromDelegatedAccount(this.business),
+      delegation_metadata_business: delegationMetadataPdaFromDelegatedAccount(this.business),
+      buffer_ledger: delegateBufferPdaFromDelegatedAccountAndOwnerProgram(this.ledger, PROGRAM_ID),
+      delegation_record_ledger: delegationRecordPdaFromDelegatedAccount(this.ledger),
+      delegation_metadata_ledger: delegationMetadataPdaFromDelegatedAccount(this.ledger),
+      owner_program: PROGRAM_ID, delegation_program: DELEGATION_PROGRAM_ID, magic_program: MAGIC_PROGRAM_ID, magic_context: MAGIC_CONTEXT_ID,
+      ...extra,
     };
   }
 
   // ---------- sending (session key signs; wallet never involved) ----------
-  private async send(ixs: TransactionInstruction[], cu = 300_000): Promise<string> {
+  /** `er` = send to the Ephemeral Rollup instead of the base layer */
+  private async send(ixs: TransactionInstruction[], cu = 300_000, er = false): Promise<string> {
     const s = this.session!;
+    const conn = er ? router.erConn : this.conn;
+    this.lastSendWasEr = er;
     const tx = new Transaction().add(ComputeBudgetProgram.setComputeUnitLimit({ units: cu }), ...ixs);
-    const { blockhash, lastValidBlockHeight } = await this.conn.getLatestBlockhash("confirmed");
+    const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("confirmed");
     tx.recentBlockhash = blockhash;
     tx.feePayer = s.publicKey;
     tx.sign(s);
-    const sig = await this.conn.sendRawTransaction(tx.serialize(), { skipPreflight: false, maxRetries: 3 });
-    const res = await this.conn.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
+    const sig = await conn.sendRawTransaction(tx.serialize(), { skipPreflight: er, maxRetries: 3 });
+    const res = await conn.confirmTransaction({ signature: sig, blockhash, lastValidBlockHeight }, "confirmed");
     if (res.value.err) throw new Error(`transaction failed: ${JSON.stringify(res.value.err)}`);
     return sig;
   }
@@ -140,7 +162,7 @@ export class GameChain {
   private async timed(kind: Parameters<Log>[0], message: string, fn: () => Promise<string>) {
     const t0 = performance.now();
     const signature = await fn();
-    this.log(kind, { message, signature, latencyMs: Math.round(performance.now() - t0), isLive: true });
+    this.log(kind, { message, signature, latencyMs: Math.round(performance.now() - t0), isLive: true, er: this.lastSendWasEr });
     return signature;
   }
 
@@ -239,10 +261,84 @@ export class GameChain {
     this.set({ phase: "setting-up", detail: "Creating your season, GD wallet and shop…" });
     await this.bootstrap();
     if (run !== this.runId) return;
+    await this.enterEr();
     await this.refresh();
     this.set({ phase: "live", detail: undefined });
     if (this.pollTimer) clearInterval(this.pollTimer);
     this.pollTimer = setInterval(() => this.refresh().catch(() => {}), 3000);
+  }
+
+  // ---------- Ephemeral Rollup lifecycle ----------
+  private async isDelegated() {
+    const acc = await this.conn.getAccountInfo(this.business);
+    return !!acc && acc.owner.equals(DELEGATION_PROGRAM_ID);
+  }
+  private async erValidator(): Promise<PublicKey> {
+    const res = await fetch(router.erConn.rpcEndpoint, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getIdentity" }) });
+    return new PublicKey((await res.json()).result.identity);
+  }
+  private async waitFor(cond: () => Promise<boolean>, ms: number, what: string) {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+      if (await cond().catch(() => false)) return;
+      await new Promise((r) => setTimeout(r, 700));
+    }
+    throw new Error(`timed out waiting for ${what}`);
+  }
+  private delegateIx(validator: PublicKey) {
+    return this.ix("delegate_shop", Buffer.concat([Buffer.from([1]), validator.toBuffer()]), this.common());
+  }
+  /** Delegate the shop (Business + ledger) to the Ephemeral Rollup; fall back to base-layer play if it is unavailable. */
+  private async enterEr() {
+    if (!ER_ENABLED) return;
+    try {
+      if (!(await this.isDelegated())) {
+        const validator = await this.erValidator();
+        const ledger = await this.conn.getAccountInfo(this.ledger);
+        if (!ledger) {
+          await this.timed("TICK", "Shop ledger created", () => this.send([this.ix("init_ledger", Buffer.alloc(0), this.common())], 200_000));
+        } else if (ledger.data.readBigUInt64LE(104) !== 0n || ledger.data.readBigInt64LE(112) !== 0n) {
+          // an earlier session was undelegated but not settled: pay it out before starting a new one
+          await this.timed("TICK", "Settled the previous rollup session", () => this.send([this.ix("settle_shop", Buffer.alloc(0), this.common())], 250_000));
+        }
+        await this.timed("TICK", "Shop delegated to the Ephemeral Rollup (commits to devnet every 30 s)", () => this.send([this.delegateIx(validator)], 400_000));
+      }
+      await this.waitFor(async () => !!(await router.erConn.getAccountInfo(this.ledger)), 30_000, "the rollup to receive the shop");
+      this.set({ erMode: true });
+    } catch (e) {
+      // a delegated shop can only be played on the rollup, so never claim base-layer mode in that case
+      const delegated = await this.isDelegated().catch(() => false);
+      this.set({ erMode: delegated });
+      const why = String((e as { message?: string })?.message ?? e).slice(0, 70);
+      this.log("TICK", { message: delegated ? `Ephemeral Rollup is slow to respond: ${why}` : `Ephemeral Rollup unavailable, playing on devnet: ${why}`, signature: "sim-er", latencyMs: 0, isLive: false });
+    }
+  }
+  /**
+   * Cash out: commit the rollup state and return the shop to devnet, move the session's net GD into your token
+   * account (settle_shop), then delegate again and keep playing.
+   */
+  settle() {
+    return this.enqueue(async () => {
+      if (!this.state.erMode || this.state.settling) return;
+      this.set({ settling: true });
+      try {
+        const validator = await this.erValidator();
+        const owed = this.state.unsettledGd;
+        await this.timed("TICK", "Committing the shop from the Ephemeral Rollup back to devnet", () => this.send([this.ix("undelegate_shop", Buffer.alloc(0), this.common())], 200_000, true));
+        await this.waitFor(async () => !(await this.isDelegated()), 90_000, "the shop to return to devnet");
+        await this.timed("TICK", `Settled ${owed >= 0 ? "+" : ""}${owed.toFixed(2)} GD to your wallet token account`, () => this.send([this.ix("settle_shop", Buffer.alloc(0), this.common())], 250_000));
+        await this.timed("TICK", "Shop delegated to the Ephemeral Rollup again", () => this.send([this.delegateIx(validator)], 400_000));
+        await this.waitFor(async () => !!(await router.erConn.getAccountInfo(this.ledger)), 30_000, "the rollup to receive the shop");
+      } catch (e) {
+        this.log("SETTLE", { message: `Settle did not finish: ${String((e as { message?: string })?.message ?? e).slice(0, 80)}`, signature: "sim-settle", latencyMs: 0, isLive: false });
+        // if the shop already left the rollup, this pays out the pending ledger and delegates again
+        this.set({ settling: false });
+        await this.enterEr();
+      } finally {
+        this.set({ settling: false });
+        await this.refresh().catch(() => {});
+      }
+    });
   }
 
   disconnect() {
@@ -280,11 +376,21 @@ export class GameChain {
   // ---------- reading chain state ----------
   async refresh() {
     if (!this.session) return;
-    const [gdAcc, bizAcc, ownAcc, bal] = await Promise.all([
-      this.conn.getAccountInfo(this.playerGd), this.conn.getAccountInfo(this.business), this.conn.getAccountInfo(this.playerPda), this.conn.getBalance(this.session.publicKey),
+    const er = this.state.erMode && !this.state.settling;
+    const readConn = er ? router.erConn : this.conn;
+    const [gdAcc, bizAcc, ownAcc, bal, ledgerAcc] = await Promise.all([
+      this.conn.getAccountInfo(this.playerGd), readConn.getAccountInfo(this.business), this.conn.getAccountInfo(this.playerPda), this.conn.getBalance(this.session.publicKey),
+      er ? router.erConn.getAccountInfo(this.ledger) : Promise.resolve(null),
     ]);
     const next: Partial<ChainState> = { sessionSol: bal / LAMPORTS_PER_SOL, pendingSales: this.pending };
-    if (gdAcc) next.gd = Number(gdAcc.data.readBigUInt64LE(64)) / GD_UNIT; // SPL token account: amount @ offset 64
+    if (gdAcc && !this.state.settling) next.gd = Number(gdAcc.data.readBigUInt64LE(64)) / GD_UNIT; // SPL token account: amount @ offset 64
+    if (er && ledgerAcc) {
+      // layout: disc8 business32 owner32 season32 | gd_snapshot u64 | gd_credit i64 | customers_served u64 ...
+      const snapshot = Number(ledgerAcc.data.readBigUInt64LE(104)), credit = Number(ledgerAcc.data.readBigInt64LE(112));
+      next.gd = (snapshot + credit) / GD_UNIT;
+      next.unsettledGd = credit / GD_UNIT;
+      next.customersServed = Number(ledgerAcc.data.readBigUInt64LE(120));
+    }
     if (bizAcc) {
       const d = bizAcc.data;
       let o = 8 + 8 + 32 + 32 + 1; // disc, season_id, plot, owner, kind
@@ -296,7 +402,7 @@ export class GameChain {
       next.unitCostCents = d.readUInt16LE(o); o += 2;
       next.lifetimeRevenueGd = Number(d.readBigUInt64LE(o)) / GD_UNIT;
     }
-    if (ownAcc) next.customersServed = Number(ownAcc.data.readBigUInt64LE(8 + 32 + 32 + 1 + 8));
+    if (ownAcc && !er) next.customersServed = Number(ownAcc.data.readBigUInt64LE(8 + 32 + 32 + 1 + 8));
     this.set(next);
   }
 
@@ -309,7 +415,7 @@ export class GameChain {
       const target = this.state.pendingPrice ?? priceCents;
       try {
         await this.timed("PRICE", `Stall #0 repriced to $${(target / 100).toFixed(2)} on-chain`, () =>
-          this.send([this.ix("set_business_price", u16(target), this.common())], 100_000));
+          this.send([this.ix("set_business_price", u16(target), this.common())], 100_000, this.state.erMode));
         this.set({ priceCents: target, pendingPrice: this.state.pendingPrice === target ? null : this.state.pendingPrice });
       } catch (e) {
         this.set({ pendingPrice: null });
@@ -319,13 +425,13 @@ export class GameChain {
   }
   restock(units: number) {
     return this.enqueue(async () => {
-      await this.timed("TICK", `Restocked ${units} units`, () => this.send([this.ix("restock", u32(units), this.common())], 150_000));
+      await this.timed("TICK", `Restocked ${units} units`, () => this.send([this.ix(this.state.erMode ? "er_restock" : "restock", u32(units), this.common())], 150_000, this.state.erMode));
       await this.refresh();
     });
   }
   buyUpgrade(flag: number, label: string) {
     return this.enqueue(async () => {
-      await this.timed("TICK", `Upgrade bought: ${label}`, () => this.send([this.ix("buy_upgrade", Buffer.from([flag]), this.common())], 150_000));
+      await this.timed("TICK", `Upgrade bought: ${label}`, () => this.send([this.ix(this.state.erMode ? "er_buy_upgrade" : "buy_upgrade", Buffer.from([flag]), this.common())], 150_000, this.state.erMode));
       await this.refresh();
     });
   }
@@ -337,22 +443,36 @@ export class GameChain {
     return this.enqueue(async () => {
       if (!this.live) throw new Error("Connect your wallet and start a session first");
       const id = BigInt(Math.floor(Date.now() / 1000)) * 1000n + BigInt(Math.floor(Math.random() * 1000));
-      const auction = this.pda([Buffer.from("auction"), this.season.toBuffer(), u64(id)]);
+      const er = this.state.erMode;
       const t0 = performance.now();
-      const signature = await this.send([this.ix("bid_auction", Buffer.concat([u64(id), u32(units), u64(Math.round(bidGd * GD_UNIT))]), { ...this.common(), auction })], 250_000);
-      const acc = await this.conn.getAccountInfo(auction, "confirmed");
-      if (!acc) throw new Error("auction result not found");
-      const d = acc.data; // disc8 season32 bidder32 auction_id8 units4 bid8 rivals24 won1 slot8
-      const out: AuctionOutcome = {
-        units: d.readUInt32LE(80),
-        bidGd: Number(d.readBigUInt64LE(84)) / GD_UNIT,
-        rivalsGd: [0, 1, 2].map((i) => Number(d.readBigUInt64LE(92 + i * 8)) / GD_UNIT) as [number, number, number],
-        won: d[116] === 1,
-        signature,
-      };
+      const args = Buffer.concat([u64(id), u32(units), u64(Math.round(bidGd * GD_UNIT))]);
+      let out: AuctionOutcome;
+      let signature: string;
+      if (er) {
+        signature = await this.send([this.ix("er_bid_auction", args, this.common())], 250_000, true);
+        const acc = await router.erConn.getAccountInfo(this.ledger, "confirmed");
+        if (!acc) throw new Error("auction result not found");
+        const d = acc.data; // ledger: ... last_auction_id@128 last_units@136 last_bid@140 last_rivals@148 last_won@172
+        out = {
+          units: d.readUInt32LE(136), bidGd: Number(d.readBigUInt64LE(140)) / GD_UNIT,
+          rivalsGd: [0, 1, 2].map((i) => Number(d.readBigUInt64LE(148 + i * 8)) / GD_UNIT) as [number, number, number],
+          won: d[172] === 1, signature,
+        };
+      } else {
+        const auction = this.pda([Buffer.from("auction"), this.season.toBuffer(), u64(id)]);
+        signature = await this.send([this.ix("bid_auction", args, { ...this.common(), auction })], 250_000);
+        const acc = await this.conn.getAccountInfo(auction, "confirmed");
+        if (!acc) throw new Error("auction result not found");
+        const d = acc.data; // disc8 season32 bidder32 auction_id8 units4 bid8 rivals24 won1 slot8
+        out = {
+          units: d.readUInt32LE(80), bidGd: Number(d.readBigUInt64LE(84)) / GD_UNIT,
+          rivalsGd: [0, 1, 2].map((i) => Number(d.readBigUInt64LE(92 + i * 8)) / GD_UNIT) as [number, number, number],
+          won: d[116] === 1, signature,
+        };
+      }
       this.log("AUCTION", {
         message: out.won ? `Auction won: paid ${out.bidGd} GD, +${out.units} units of stock` : `Auction lost: top rival bid ${Math.max(...out.rivalsGd)} GD (no GD spent)`,
-        signature, latencyMs: Math.round(performance.now() - t0), isLive: true,
+        signature, latencyMs: Math.round(performance.now() - t0), isLive: true, er,
       });
       await this.refresh();
       return out;
@@ -376,7 +496,7 @@ export class GameChain {
     this.enqueue(async () => {
       try {
         await this.timed("TICK", `${n} customer${n > 1 ? "s" : ""} paid $${((n * price) / 100).toFixed(2)} GD`, () =>
-          this.send([this.ix("serve_customers", u16(n), this.common())], 200_000));
+          this.send([this.ix(this.state.erMode ? "er_serve_customers" : "serve_customers", u16(n), this.common())], 200_000, this.state.erMode));
       } catch (e) {
         const m = e instanceof Error ? e.message : String(e);
         this.log("TICK", { message: /OutOfStock|0x1780|6016/i.test(m) ? "Sold out: restock to keep serving customers" : `Sale failed: ${m.slice(0, 80)}`, signature: "sim-sale", latencyMs: 0, isLive: false });

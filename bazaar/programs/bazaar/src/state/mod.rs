@@ -8,6 +8,7 @@ pub mod spectator;
 pub mod profile;
 pub mod player;
 pub mod auction;
+pub mod ledger;
 pub mod signals;
 
 pub use season::*;
@@ -20,4 +21,5 @@ pub use spectator::*;
 pub use profile::*;
 pub use player::*;
 pub use auction::*;
+pub use ledger::*;
 pub use signals::*;

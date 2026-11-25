@@ -236,7 +236,7 @@ export const App: React.FC = () => {
   };
 
   const logChain = (type: "PRICE" | "TICK" | "AUCTION" | "VRF" | "SETTLE", r: TxLog) =>
-    addLedgerItem({ type, message: r.message, signature: r.signature, latencyMs: r.latencyMs, network: "Base" });
+    addLedgerItem({ type, message: r.message, signature: r.signature, latencyMs: r.latencyMs, network: r.er ? "ER" : "Base" });
 
   // Real wallet → one session approval → everything else is signed by the session key
   const { publicKey, signTransaction, connected } = useWallet();

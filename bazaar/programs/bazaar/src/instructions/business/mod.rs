@@ -213,13 +213,7 @@ pub fn handle_bid_auction(ctx: Context<BidAuction>, auction_id: u64, units: u32,
     let slot = Clock::get()?.slot;
     let fair = ctx.accounts.business.unit_cost_cents as u64 * units as u64; // raw GD wholesale value
 
-    let seed = u64::from_le_bytes(ctx.accounts.season.key().to_bytes()[0..8].try_into().unwrap());
-    let mut x = slot ^ auction_id.rotate_left(17) ^ seed ^ 0x9E37_79B9_7F4A_7C15;
-    let mut rivals = [0u64; 3];
-    for r in rivals.iter_mut() {
-        x ^= x << 13; x ^= x >> 7; x ^= x << 17; // xorshift64
-        *r = fair * (60 + x % 60) / 100;
-    }
+    let rivals = auction_rivals(&ctx.accounts.season.key(), auction_id, slot, fair);
     let won = bid > *rivals.iter().max().unwrap();
 
     if won {
@@ -240,4 +234,16 @@ pub fn handle_bid_auction(ctx: Context<BidAuction>, auction_id: u64, units: u32,
     a.won = won;
     a.slot = slot;
     Ok(())
+}
+
+/// Three rival bids, each 60-119% of the lot's wholesale value, derived from the slot (xorshift64; not a VRF).
+pub fn auction_rivals(season: &Pubkey, auction_id: u64, slot: u64, fair: u64) -> [u64; 3] {
+    let seed = u64::from_le_bytes(season.to_bytes()[0..8].try_into().unwrap());
+    let mut x = slot ^ auction_id.rotate_left(17) ^ seed ^ 0x9E37_79B9_7F4A_7C15;
+    let mut rivals = [0u64; 3];
+    for r in rivals.iter_mut() {
+        x ^= x << 13; x ^= x >> 7; x ^= x << 17;
+        *r = fair * (60 + x % 60) / 100;
+    }
+    rivals
 }

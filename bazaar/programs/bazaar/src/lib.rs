@@ -7,11 +7,13 @@ pub mod instructions;
 pub mod state;
 pub mod utils;
 
+use ephemeral_rollups_sdk::anchor::ephemeral;
 use instructions::*;
 use state::*;
 
 declare_id!("GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb");
 
+#[ephemeral]
 #[program]
 pub mod bazaar {
     use super::*;
@@ -86,6 +88,35 @@ pub mod bazaar {
     /// Sealed-bid wholesale auction; a winning bid is paid in GD and restocks the shop
     pub fn bid_auction(ctx: Context<BidAuction>, auction_id: u64, units: u32, bid: u64) -> Result<()> {
         handle_bid_auction(ctx, auction_id, units, bid)
+    }
+
+    // ─── EPHEMERAL ROLLUP ───
+    pub fn init_ledger(ctx: Context<InitLedger>) -> Result<()> {
+        handle_init_ledger(ctx)
+    }
+    pub fn delegate_shop(ctx: Context<DelegateShop>, validator: Option<Pubkey>) -> Result<()> {
+        handle_delegate_shop(ctx, validator)
+    }
+    pub fn settle_shop(ctx: Context<SettleShop>) -> Result<()> {
+        handle_settle_shop(ctx)
+    }
+    pub fn er_restock(ctx: Context<ErShop>, units: u32) -> Result<()> {
+        handle_er_restock(ctx, units)
+    }
+    pub fn er_buy_upgrade(ctx: Context<ErShop>, upgrade_flag: u8) -> Result<()> {
+        handle_er_buy_upgrade(ctx, upgrade_flag)
+    }
+    pub fn er_bid_auction(ctx: Context<ErShop>, auction_id: u64, units: u32, bid: u64) -> Result<()> {
+        handle_er_bid_auction(ctx, auction_id, units, bid)
+    }
+    pub fn er_serve_customers(ctx: Context<ErServe>, count: u16) -> Result<()> {
+        handle_er_serve_customers(ctx, count)
+    }
+    pub fn commit_shop(ctx: Context<CommitShop>) -> Result<()> {
+        handle_commit_shop(ctx)
+    }
+    pub fn undelegate_shop(ctx: Context<CommitShop>) -> Result<()> {
+        handle_undelegate_shop(ctx)
     }
 
     /// Town population buys from a shop (season authority / its session key only)

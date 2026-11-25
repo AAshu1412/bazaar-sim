@@ -1,4 +1,4 @@
-import { Buffer } from "buffer";
+import "./polyfills"; // keep first
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
@@ -9,9 +9,6 @@ import { DEVNET_RPC_URL } from "./solana/router";
 import { DevWalletAdapter } from "./solana/DevWalletAdapter";
 import { gameChain } from "./solana/gameChain";
 import "./index.css";
-
-// the Pyth SDK expects a global Buffer in the browser
-(window as unknown as { Buffer: typeof Buffer }).Buffer = Buffer;
 
 // Phantom, Solflare, Backpack… are discovered automatically through the Wallet Standard.
 // The key-in-localStorage dev wallet exists only under `vite dev`.

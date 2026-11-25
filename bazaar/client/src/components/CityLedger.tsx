@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { ChevronUp, ChevronDown, ExternalLink, Zap } from "lucide-react";
 import { useGameStore, LedgerItem } from "../store/gameStore";
+import { ER_RPC_URL } from "../solana/router";
 
 export const CityLedger: React.FC = () => {
   const [collapsed, setCollapsed] = useState<boolean>(false);
@@ -54,7 +55,7 @@ export const CityLedger: React.FC = () => {
 
               {item.signature.length > 40 ? (
                 <a
-                  href={`https://explorer.solana.com/tx/${item.signature}?cluster=devnet`}
+                  href={`https://explorer.solana.com/tx/${item.signature}?${item.network === "ER" ? `cluster=custom&customUrl=${encodeURIComponent(ER_RPC_URL)}` : "cluster=devnet"}`}
                   target="_blank"
                   rel="noreferrer"
                   className="flex shrink-0 items-center gap-1 text-gray-400 hover:text-indigo-400 transition-colors"

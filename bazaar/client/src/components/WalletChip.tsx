@@ -23,8 +23,20 @@ export const WalletChip: React.FC = () => {
           title={`On-chain via session key ${gameChain.sessionAddress ?? ""}\nSession fee balance: ${s.sessionSol.toFixed(3)} SOL`}
         >
           <span className="w-2 h-2 rounded-full bg-emerald-400" />
+          {s.erMode && <span className="px-1.5 rounded bg-indigo-500/25 text-indigo-300 font-bold" title="Your shop is delegated to a MagicBlock Ephemeral Rollup">ER</span>}
           <span className="text-emerald-300 font-bold">{s.gd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} GD</span>
         </div>
+      )}
+      {connected && s.phase === "live" && s.erMode && (
+        <button
+          onClick={() => gameChain.settle()}
+          disabled={s.settling}
+          title={`Bring the shop back to devnet and pay your GD into your token account, then rejoin the rollup. This session's net: ${s.unsettledGd >= 0 ? "+" : ""}${s.unsettledGd.toFixed(2)} GD`}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-500/20 hover:bg-indigo-500/35 disabled:opacity-60 text-indigo-200 border border-indigo-500/50 rounded-xl text-xs font-bold"
+        >
+          {s.settling && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+          {s.settling ? "Settling…" : "Settle"}
+        </button>
       )}
       {connected && (s.phase === "connecting" || s.phase === "setting-up") && (
         <div className="flex items-center gap-2 px-3 py-1.5 bg-[#120f0d] border border-amber-500/40 rounded-xl text-xs font-mono text-amber-300" title={s.detail}>

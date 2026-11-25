@@ -18,6 +18,10 @@ Stack: React + Pixi (client), Anchor 1.2.2 program, MagicBlock **session-keys** 
 4. Every game instruction accepts either the wallet itself or a valid session key whose token names the wallet as authority. Strangers are rejected (`Unauthorized`), verified by tests.
 5. If the session key's SOL runs low or the session expires, the UI asks for one more approval (revoke + recreate).
 
+## 2b. Ephemeral Rollup  [ON-CHAIN, MagicBlock]
+After setup the client delegates the shop: `init_ledger` (once), then `delegate_shop`. Delegating **escrows your GD in the treasury** (token balance shows 0 on devnet), records it in a `ShopLedger` account, and hands the `Business` + ledger accounts to the rollup validator (`https://devnet.magicblock.app`, override with `VITE_ER_URL`; `VITE_ER=off` disables). On the rollup: `set_business_price`, `er_restock`, `er_serve_customers`, `er_buy_upgrade`, `er_bid_auction`. Spending is limited to escrow + session net. State auto-commits to devnet every 30 s. **Settle** (header button) calls `undelegate_shop`, then `settle_shop` pays escrow + net into your token account, then delegates again. PlayerState is not delegated; SPL token accounts cannot be delegated by this program, which is why the ledger exists.
+Tested locally: delegation, all rollup operations, escrow limits and settlement math. **Not verified: commit/undelegate round trip** (the local validator stack could not deliver the rollup's commit transactions).
+
 ## 3. Setup flow the first time you press play  [ON-CHAIN]
 `create_season` (PDA per wallet, id 1) -> creates the **GD mint** (2 decimals, authority = season PDA) and a **town treasury** token account holding 10,000,000 GD. `join_season` -> creates your PlayerState + your GD token account and **mints you 10,000 GD**. `initialize_plot(0)` + `claim_plot` -> you pay **3,000 GD** (MainStreet tier plot) to the treasury. `open_business` -> pay **2,000 GD** (CoffeeCart), starting stock **60 units**, price **$2.75**, unit cost about $1.37. You end at ~5,000 GD.
 
@@ -84,7 +88,7 @@ Price tags above shops: coloured by owner type (you green, rival red, bots indig
 - **Not connected**: the whole game still runs as a pure local simulation (cash goes up from fake sales).
 
 ## 13. In the README / program but NOT implemented
-MagicBlock Ephemeral Rollups, Private ER/TDX sealed bids (the auction is a normal devnet transaction), real VRF, cranks (day open/close, rent, interest, liquidations), Ephemeral SPL settlement, Magic Actions pot payout, season end and payout, rent/leases between players, loans and liquidation, buyouts, real managers, spectator markets, sponsorship, events. Program instructions for several exist (`open_day`, `close_day`, `take_loan`, `hire_manager`, `buy_scout`, ...) but the client never calls them.
+Private ER/TDX sealed bids (the auction is a normal devnet transaction), real VRF, cranks (day open/close, rent, interest, liquidations), Ephemeral SPL settlement, Magic Actions pot payout, season end and payout, rent/leases between players, loans and liquidation, buyouts, real managers, spectator markets, sponsorship, events. Program instructions for several exist (`open_day`, `close_day`, `take_loan`, `hire_manager`, `buy_scout`, ...) but the client never calls them.
 Also stale: `keeper/` and `tests/` target an older round/auction design and will not work with the current program.
 
 ## 14. Known issues and risks

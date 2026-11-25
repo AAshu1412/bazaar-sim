@@ -269,6 +269,50 @@ export const IX: Record<string, { disc: number[]; accounts: [string, boolean, bo
    ]
   ]
  },
+ "commit_shop": {
+  "disc": [
+   223,
+   106,
+   250,
+   246,
+   211,
+   162,
+   186,
+   153
+  ],
+  "accounts": [
+   [
+    "payer",
+    true,
+    true
+   ],
+   [
+    "business",
+    true,
+    false
+   ],
+   [
+    "ledger",
+    true,
+    false
+   ],
+   [
+    "session_token",
+    false,
+    false
+   ],
+   [
+    "magic_program",
+    false,
+    false
+   ],
+   [
+    "magic_context",
+    true,
+    false
+   ]
+  ]
+ },
  "create_season": {
   "disc": [
    38,
@@ -320,6 +364,261 @@ export const IX: Record<string, { disc: number[]; accounts: [string, boolean, bo
     "system_program",
     false,
     false
+   ]
+  ]
+ },
+ "delegate_shop": {
+  "disc": [
+   108,
+   114,
+   162,
+   104,
+   10,
+   44,
+   228,
+   56
+  ],
+  "accounts": [
+   [
+    "payer",
+    true,
+    true
+   ],
+   [
+    "season",
+    false,
+    false
+   ],
+   [
+    "player_gd",
+    true,
+    false
+   ],
+   [
+    "treasury",
+    true,
+    false
+   ],
+   [
+    "token_program",
+    false,
+    false
+   ],
+   [
+    "buffer_business",
+    true,
+    false
+   ],
+   [
+    "delegation_record_business",
+    true,
+    false
+   ],
+   [
+    "delegation_metadata_business",
+    true,
+    false
+   ],
+   [
+    "business",
+    true,
+    false
+   ],
+   [
+    "buffer_ledger",
+    true,
+    false
+   ],
+   [
+    "delegation_record_ledger",
+    true,
+    false
+   ],
+   [
+    "delegation_metadata_ledger",
+    true,
+    false
+   ],
+   [
+    "ledger",
+    true,
+    false
+   ],
+   [
+    "session_token",
+    false,
+    false
+   ],
+   [
+    "owner_program",
+    false,
+    false
+   ],
+   [
+    "delegation_program",
+    false,
+    false
+   ],
+   [
+    "system_program",
+    false,
+    false
+   ]
+  ]
+ },
+ "er_bid_auction": {
+  "disc": [
+   253,
+   82,
+   99,
+   240,
+   75,
+   164,
+   7,
+   134
+  ],
+  "accounts": [
+   [
+    "season",
+    false,
+    false
+   ],
+   [
+    "business",
+    true,
+    false
+   ],
+   [
+    "ledger",
+    true,
+    false
+   ],
+   [
+    "session_token",
+    false,
+    false
+   ],
+   [
+    "signer",
+    false,
+    true
+   ]
+  ]
+ },
+ "er_buy_upgrade": {
+  "disc": [
+   84,
+   75,
+   94,
+   117,
+   26,
+   56,
+   61,
+   193
+  ],
+  "accounts": [
+   [
+    "season",
+    false,
+    false
+   ],
+   [
+    "business",
+    true,
+    false
+   ],
+   [
+    "ledger",
+    true,
+    false
+   ],
+   [
+    "session_token",
+    false,
+    false
+   ],
+   [
+    "signer",
+    false,
+    true
+   ]
+  ]
+ },
+ "er_restock": {
+  "disc": [
+   122,
+   44,
+   223,
+   7,
+   117,
+   13,
+   9,
+   77
+  ],
+  "accounts": [
+   [
+    "season",
+    false,
+    false
+   ],
+   [
+    "business",
+    true,
+    false
+   ],
+   [
+    "ledger",
+    true,
+    false
+   ],
+   [
+    "session_token",
+    false,
+    false
+   ],
+   [
+    "signer",
+    false,
+    true
+   ]
+  ]
+ },
+ "er_serve_customers": {
+  "disc": [
+   241,
+   205,
+   214,
+   85,
+   253,
+   25,
+   91,
+   232
+  ],
+  "accounts": [
+   [
+    "season",
+    false,
+    false
+   ],
+   [
+    "business",
+    true,
+    false
+   ],
+   [
+    "ledger",
+    true,
+    false
+   ],
+   [
+    "session_token",
+    false,
+    false
+   ],
+   [
+    "signer",
+    false,
+    true
    ]
   ]
  },
@@ -376,6 +675,50 @@ export const IX: Record<string, { disc: number[]; accounts: [string, boolean, bo
    ],
    [
     "owner",
+    true,
+    true
+   ],
+   [
+    "system_program",
+    false,
+    false
+   ]
+  ]
+ },
+ "init_ledger": {
+  "disc": [
+   91,
+   194,
+   32,
+   83,
+   92,
+   206,
+   54,
+   67
+  ],
+  "accounts": [
+   [
+    "season",
+    false,
+    false
+   ],
+   [
+    "business",
+    false,
+    false
+   ],
+   [
+    "ledger",
+    true,
+    false
+   ],
+   [
+    "session_token",
+    false,
+    false
+   ],
+   [
+    "signer",
     true,
     true
    ],
@@ -645,6 +988,40 @@ export const IX: Record<string, { disc: number[]; accounts: [string, boolean, bo
    ]
   ]
  },
+ "process_undelegation": {
+  "disc": [
+   196,
+   28,
+   41,
+   206,
+   48,
+   37,
+   51,
+   167
+  ],
+  "accounts": [
+   [
+    "base_account",
+    true,
+    false
+   ],
+   [
+    "buffer",
+    false,
+    false
+   ],
+   [
+    "payer",
+    true,
+    false
+   ],
+   [
+    "system_program",
+    false,
+    false
+   ]
+  ]
+ },
  "repay_loan": {
   "disc": [
    224,
@@ -825,6 +1202,60 @@ export const IX: Record<string, { disc: number[]; accounts: [string, boolean, bo
    ]
   ]
  },
+ "settle_shop": {
+  "disc": [
+   4,
+   194,
+   20,
+   241,
+   243,
+   165,
+   220,
+   164
+  ],
+  "accounts": [
+   [
+    "season",
+    false,
+    false
+   ],
+   [
+    "business",
+    false,
+    false
+   ],
+   [
+    "ledger",
+    true,
+    false
+   ],
+   [
+    "player_gd",
+    true,
+    false
+   ],
+   [
+    "treasury",
+    true,
+    false
+   ],
+   [
+    "session_token",
+    false,
+    false
+   ],
+   [
+    "signer",
+    false,
+    true
+   ],
+   [
+    "token_program",
+    false,
+    false
+   ]
+  ]
+ },
  "sponsor_street": {
   "disc": [
    101,
@@ -913,6 +1344,50 @@ export const IX: Record<string, { disc: number[]; accounts: [string, boolean, bo
    [
     "system_program",
     false,
+    false
+   ]
+  ]
+ },
+ "undelegate_shop": {
+  "disc": [
+   229,
+   42,
+   102,
+   123,
+   105,
+   213,
+   224,
+   188
+  ],
+  "accounts": [
+   [
+    "payer",
+    true,
+    true
+   ],
+   [
+    "business",
+    true,
+    false
+   ],
+   [
+    "ledger",
+    true,
+    false
+   ],
+   [
+    "session_token",
+    false,
+    false
+   ],
+   [
+    "magic_program",
+    false,
+    false
+   ],
+   [
+    "magic_context",
+    true,
     false
    ]
   ]
