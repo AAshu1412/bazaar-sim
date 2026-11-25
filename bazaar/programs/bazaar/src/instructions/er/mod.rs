@@ -5,13 +5,20 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount};
 use ephemeral_rollups_sdk::anchor::{commit, delegate};
+use ephemeral_rollups_sdk::vrf::{
+    self,
+    anchor::VrfProgram,
+    consts::{program_identity_pda, scoped_vrf_identity_const},
+    instructions::{create_request_randomness_ix_const, RequestRandomnessParams},
+    types::SerializableAccountMeta,
+};
+use anchor_lang::solana_program::{instruction::Instruction, program::invoke_signed};
 use ephemeral_rollups_sdk::cpi::DelegateConfig;
 use ephemeral_rollups_sdk::ephem::{commit_accounts, commit_and_undelegate_accounts};
 use session_keys::{session_auth_or, Session, SessionError, SessionToken};
 use crate::constants::*;
 use crate::errors::BazaarError;
 use crate::gd;
-use crate::instructions::business::auction_rivals;
 use crate::state::*;
 
 // ───────────── base layer ─────────────
@@ -118,6 +125,7 @@ pub struct SettleShop<'info> {
 /// Every rollup spend is checked against `snapshot + credit`, so this amount is never negative.
 #[session_auth_or(ctx.accounts.business.owner == ctx.accounts.signer.key(), BazaarError::Unauthorized)]
 pub fn handle_settle_shop(ctx: Context<SettleShop>) -> Result<()> {
+    ctx.accounts.ledger.cancel_pending_auction(); // its callback can no longer reach this shop
     let due = available(&ctx.accounts.ledger);
     require!(due >= 0, BazaarError::InsufficientFunds);
     if due > 0 {
@@ -168,7 +176,8 @@ fn storage_cap(b: &Business) -> u32 {
 pub fn handle_er_restock(ctx: Context<ErShop>, units: u32) -> Result<()> {
     require!(units > 0, BazaarError::InvalidAmount);
     let stock = ctx.accounts.business.inventory.checked_add(units).ok_or(BazaarError::InvalidAmount)?;
-    require!(stock <= storage_cap(&ctx.accounts.business), BazaarError::InventoryFull);
+    let reserved = if ctx.accounts.ledger.auction_pending() { ctx.accounts.ledger.last_units } else { 0 };
+    require!(stock.saturating_add(reserved) <= storage_cap(&ctx.accounts.business), BazaarError::InventoryFull);
     let cost = ctx.accounts.business.unit_cost_cents as i64 * units as i64;
     require!(available(&ctx.accounts.ledger) >= cost, BazaarError::InsufficientFunds);
     ctx.accounts.ledger.gd_credit -= cost;
@@ -202,28 +211,181 @@ pub fn handle_er_serve_customers(ctx: Context<ErServe>, count: u16) -> Result<()
     Ok(())
 }
 
+// ───────────── MagicBlock VRF (requested on the rollup, answered by the oracle in a callback) ─────────────
+
+const PROGRAM_IDENTITY: ([u8; 32], u8) = program_identity_pda(&crate::ID);
+/// Only the VRF program can sign for this PDA, and only when answering this program's requests. A `const`, because
+/// SDK 0.20.0's `#[vrf_callback]` derives it at runtime and burns the callback's whole compute budget.
+const VRF_IDENTITY: Pubkey = Pubkey::new_from_array(scoped_vrf_identity_const(&crate::ID).0);
+const SLOT_HASHES: Pubkey = pubkey!("SysvarS1otHashes111111111111111111111111111");
+/// An unanswered auction request may be replaced after this long (the oracle queue purges at about 120 s).
+const VRF_TIMEOUT_SECS: i64 = 150;
+
+#[cfg(not(feature = "localnet"))]
+const VRF_QUEUE: Pubkey = vrf::consts::DEFAULT_EPHEMERAL_QUEUE;
+#[cfg(feature = "localnet")]
+const VRF_QUEUE: Pubkey = vrf::consts::DEFAULT_TEST_QUEUE; // base-layer test queue: the local VRF program charges fees on the rollup test queue
+
+// The VRF accounts are written out because the SDK's `#[vrf]` macro does not compile on 0.20.0 (slot_hashes path).
+#[derive(Accounts, Session)]
+pub struct ErVrf<'info> {
+    #[account(seeds = [b"season", season.authority.as_ref(), season.id.to_le_bytes().as_ref()], bump)]
+    pub season: Account<'info, Season>,
+    #[account(mut, constraint = business.season_id == season.id @ BazaarError::InvalidPlot)]
+    pub business: Account<'info, Business>,
+    #[account(mut, seeds = [b"ledger", business.key().as_ref()], bump)]
+    pub ledger: Account<'info, ShopLedger>,
+    #[session(signer = signer, authority = business.owner.key())]
+    pub session_token: Option<Account<'info, SessionToken>>,
+    #[account(mut)]
+    pub signer: Signer<'info>,
+    /// CHECK: this program's identity PDA, signs the request
+    #[account(seeds = [b"identity"], bump)]
+    pub program_identity: UncheckedAccount<'info>,
+    /// CHECK: the rollup's VRF queue
+    #[account(mut, address = VRF_QUEUE)]
+    pub oracle_queue: UncheckedAccount<'info>,
+    pub vrf_program: Program<'info, VrfProgram>,
+    /// CHECK: slot hashes sysvar
+    #[account(address = SLOT_HASHES)]
+    pub slot_hashes: UncheckedAccount<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+impl<'info> ErVrf<'info> {
+    fn request(&self, ix: &Instruction) -> Result<()> {
+        invoke_signed(
+            ix,
+            &[
+                self.signer.to_account_info(),
+                self.program_identity.to_account_info(),
+                self.oracle_queue.to_account_info(),
+                self.system_program.to_account_info(),
+                self.slot_hashes.to_account_info(),
+            ],
+            &[&[b"identity", &[PROGRAM_IDENTITY.1]]],
+        )?;
+        Ok(())
+    }
+}
+
+/// Sealed-bid first-price auction for `units` of wholesale stock. The bid is reserved now; the three rival bids
+/// come from VRF randomness that does not exist yet, and `callback_auction` decides the winner.
 #[session_auth_or(ctx.accounts.business.owner == ctx.accounts.signer.key(), BazaarError::Unauthorized)]
-pub fn handle_er_bid_auction(ctx: Context<ErShop>, auction_id: u64, units: u32, bid: u64) -> Result<()> {
+pub fn handle_er_bid_auction(ctx: Context<ErVrf>, auction_id: u64, units: u32, bid: u64) -> Result<()> {
     require!(units > 0 && bid > 0, BazaarError::InvalidAmount);
     require!(auction_id > ctx.accounts.ledger.last_auction_id, BazaarError::InvalidAmount); // each auction id once
-    let slot = Clock::get()?.slot;
-    let fair = ctx.accounts.business.unit_cost_cents as u64 * units as u64;
-    let rivals = auction_rivals(&ctx.accounts.season.key(), auction_id, slot, fair);
-    let won = bid > *rivals.iter().max().unwrap();
-    if won {
-        let stock = ctx.accounts.business.inventory.checked_add(units).ok_or(BazaarError::InvalidAmount)?;
-        require!(stock <= storage_cap(&ctx.accounts.business), BazaarError::InventoryFull);
-        require!(available(&ctx.accounts.ledger) >= bid as i64, BazaarError::InsufficientFunds);
-        ctx.accounts.ledger.gd_credit -= bid as i64;
-        ctx.accounts.business.inventory = stock;
+    let now = Clock::get()?.unix_timestamp;
+    if ctx.accounts.ledger.auction_pending() {
+        require!(now - ctx.accounts.ledger.last_requested_at >= VRF_TIMEOUT_SECS, BazaarError::AuctionPending);
+        ctx.accounts.ledger.cancel_pending_auction();
     }
+    let stock = ctx.accounts.business.inventory.checked_add(units).ok_or(BazaarError::InvalidAmount)?;
+    require!(stock <= storage_cap(&ctx.accounts.business), BazaarError::InventoryFull);
+    require!(bid <= i64::MAX as u64 && available(&ctx.accounts.ledger) >= bid as i64, BazaarError::InsufficientFunds);
+
     let l = &mut ctx.accounts.ledger;
+    l.gd_credit -= bid as i64;
     l.last_auction_id = auction_id;
     l.last_units = units;
     l.last_bid = bid;
+    l.last_rivals = [0; 3];
+    l.last_won = false;
+    l.last_requested_at = now;
+
+    let mut caller_seed = ctx.accounts.business.key().to_bytes();
+    caller_seed[..8].copy_from_slice(&auction_id.to_le_bytes());
+    let ix = create_request_randomness_ix_const(
+        RequestRandomnessParams {
+            payer: ctx.accounts.signer.key(),
+            oracle_queue: VRF_QUEUE,
+            callback_program_id: crate::ID,
+            callback_discriminator: crate::instruction::CallbackAuction::DISCRIMINATOR.to_vec(),
+            caller_seed,
+            accounts_metas: Some(vec![
+                SerializableAccountMeta { pubkey: ctx.accounts.business.key(), is_signer: false, is_writable: true },
+                SerializableAccountMeta { pubkey: ctx.accounts.ledger.key(), is_signer: false, is_writable: true },
+            ]),
+            callback_args: Some(auction_id.to_le_bytes().to_vec()),
+        },
+        Pubkey::new_from_array(PROGRAM_IDENTITY.0),
+    );
+    ctx.accounts.request(&ix)
+}
+
+#[derive(Accounts)]
+pub struct CallbackAuction<'info> {
+    #[account(address = VRF_IDENTITY)]
+    pub vrf_program_identity: Signer<'info>,
+    #[account(mut)]
+    pub business: Account<'info, Business>,
+    #[account(mut, seeds = [b"ledger", business.key().as_ref()], bump)]
+    pub ledger: Account<'info, ShopLedger>,
+}
+
+/// Highest bid wins, ties go to the rivals. A winner keeps the reservation as payment and gets the stock;
+/// a loser gets the reserved GD back. Superseded, cancelled and repeated callbacks are rejected.
+pub fn handle_callback_auction(ctx: Context<CallbackAuction>, randomness: [u8; 32], auction_id: u64) -> Result<()> {
+    let l = &mut ctx.accounts.ledger;
+    require!(l.auction_pending() && l.last_auction_id == auction_id, BazaarError::StaleRandomness);
+    let b = &mut ctx.accounts.business;
+    let rivals = auction_rivals(&randomness, b.unit_cost_cents as u64 * l.last_units as u64);
+    let won = l.last_bid > *rivals.iter().max().unwrap();
+    if won {
+        b.inventory = b.inventory.saturating_add(l.last_units);
+    } else {
+        l.gd_credit += l.last_bid as i64;
+    }
     l.last_rivals = rivals;
     l.last_won = won;
-    l.last_slot = slot;
+    Ok(())
+}
+
+/// Three rival bids, each 60-119% of the lot's wholesale value (at least 1, so "answered" is never all zeros).
+pub fn auction_rivals(randomness: &[u8; 32], fair: u64) -> [u64; 3] {
+    core::array::from_fn(|i| {
+        let r = u64::from_le_bytes(randomness[i * 8..i * 8 + 8].try_into().unwrap());
+        (fair.saturating_mul(60 + r % 60) / 100).max(1)
+    })
+}
+
+/// Number of city event kinds: 1 demand surge, 2 slowdown, 3 viral stall, 4 supply shock, 5 flash-sale craze.
+pub const CITY_EVENTS: u8 = 5;
+
+#[session_auth_or(ctx.accounts.business.owner == ctx.accounts.signer.key(), BazaarError::Unauthorized)]
+pub fn handle_er_request_event(ctx: Context<ErVrf>, client_seed: u64) -> Result<()> {
+    let mut caller_seed = ctx.accounts.ledger.key().to_bytes();
+    caller_seed[..8].copy_from_slice(&client_seed.to_le_bytes());
+    let ix = create_request_randomness_ix_const(
+        RequestRandomnessParams {
+            payer: ctx.accounts.signer.key(),
+            oracle_queue: VRF_QUEUE,
+            callback_program_id: crate::ID,
+            callback_discriminator: crate::instruction::CallbackCityEvent::DISCRIMINATOR.to_vec(),
+            caller_seed,
+            accounts_metas: Some(vec![SerializableAccountMeta {
+                pubkey: ctx.accounts.ledger.key(),
+                is_signer: false,
+                is_writable: false,
+            }]),
+            callback_args: None,
+        },
+        Pubkey::new_from_array(PROGRAM_IDENTITY.0),
+    );
+    ctx.accounts.request(&ix)
+}
+
+#[derive(Accounts)]
+pub struct CallbackCityEvent<'info> {
+    #[account(address = VRF_IDENTITY)]
+    pub vrf_program_identity: Signer<'info>,
+    pub ledger: Account<'info, ShopLedger>,
+}
+
+/// Stores nothing: the event is announced in the log (the client subscribes to its ledger's logs). `target`
+/// picks the stall for a viral event.
+pub fn handle_callback_city_event(_ctx: Context<CallbackCityEvent>, randomness: [u8; 32]) -> Result<()> {
+    msg!("CityEvent kind={} target={}", 1 + randomness[0] % CITY_EVENTS, randomness[1]);
     Ok(())
 }
 
@@ -264,4 +426,31 @@ pub fn handle_undelegate_shop(ctx: Context<CommitShop>) -> Result<()> {
         None,
     )?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rivals_stay_in_range_and_never_zero() {
+        for seed in 0u8..=255 {
+            let r: [u8; 32] = core::array::from_fn(|i| seed.wrapping_mul(31).wrapping_add(i as u8 * 7));
+            assert!(auction_rivals(&r, 10_000).iter().all(|b| (6_000..=11_900).contains(b)));
+        }
+        assert_eq!(auction_rivals(&[0; 32], 0), [1; 3]);
+    }
+
+    #[test]
+    fn cancelling_returns_the_reserved_bid_once() {
+        let mut l = ShopLedger {
+            business: Pubkey::default(), owner: Pubkey::default(), season: Pubkey::default(),
+            gd_snapshot: 1_000, gd_credit: -400, customers_served: 0, last_auction_id: 1, last_units: 10,
+            last_bid: 400, last_rivals: [0; 3], last_won: false, last_requested_at: 0,
+        };
+        l.cancel_pending_auction();
+        l.cancel_pending_auction();
+        assert_eq!(l.gd_credit, 0);
+        assert!(!l.auction_pending());
+    }
 }

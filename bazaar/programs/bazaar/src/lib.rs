@@ -85,11 +85,6 @@ pub mod bazaar {
         handle_restock(ctx, units)
     }
 
-    /// Sealed-bid wholesale auction; a winning bid is paid in GD and restocks the shop
-    pub fn bid_auction(ctx: Context<BidAuction>, auction_id: u64, units: u32, bid: u64) -> Result<()> {
-        handle_bid_auction(ctx, auction_id, units, bid)
-    }
-
     // ─── EPHEMERAL ROLLUP ───
     pub fn init_ledger(ctx: Context<InitLedger>) -> Result<()> {
         handle_init_ledger(ctx)
@@ -106,8 +101,19 @@ pub mod bazaar {
     pub fn er_buy_upgrade(ctx: Context<ErShop>, upgrade_flag: u8) -> Result<()> {
         handle_er_buy_upgrade(ctx, upgrade_flag)
     }
-    pub fn er_bid_auction(ctx: Context<ErShop>, auction_id: u64, units: u32, bid: u64) -> Result<()> {
+    /// Sealed-bid wholesale auction: reserves the bid and requests MagicBlock VRF randomness for the rival bids
+    pub fn er_bid_auction(ctx: Context<ErVrf>, auction_id: u64, units: u32, bid: u64) -> Result<()> {
         handle_er_bid_auction(ctx, auction_id, units, bid)
+    }
+    pub fn callback_auction(ctx: Context<CallbackAuction>, randomness: [u8; 32], auction_id: u64) -> Result<()> {
+        handle_callback_auction(ctx, randomness, auction_id)
+    }
+    /// Requests VRF randomness for the next city event
+    pub fn er_request_event(ctx: Context<ErVrf>, client_seed: u64) -> Result<()> {
+        handle_er_request_event(ctx, client_seed)
+    }
+    pub fn callback_city_event(ctx: Context<CallbackCityEvent>, randomness: [u8; 32]) -> Result<()> {
+        handle_callback_city_event(ctx, randomness)
     }
     pub fn er_serve_customers(ctx: Context<ErServe>, count: u16) -> Result<()> {
         handle_er_serve_customers(ctx, count)

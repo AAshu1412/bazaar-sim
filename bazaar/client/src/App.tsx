@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { IsometricEngineV3, PlotInfo } from "./engine/IsometricEngineV3";
 import { EventBanner } from "./components/EventBanner";
+import { demandModifiers } from "./engine/cityEvents";
 import { AuctionModal } from "./components/AuctionModal";
 import { CityLedger } from "./components/CityLedger";
 import { ResultsModal } from "./components/ResultsModal";
@@ -149,9 +150,12 @@ export const App: React.FC = () => {
 
   // Guaranteed Continuous NPC customer generator (1.1s ticks)
   useEffect(() => {
+    let owed = 0; // fractional customers carried between ticks (city events change the rate)
     const spawner = setInterval(() => {
       if (!engineRef.current) return;
-      engineRef.current.spawnCustomer();
+      for (owed += demandModifiers(useGameStore.getState().activeEvent).customersPerTick; owed >= 1; owed--) {
+        engineRef.current.spawnCustomer();
+      }
     }, 1100);
 
     return () => clearInterval(spawner);
@@ -262,11 +266,14 @@ export const App: React.FC = () => {
       const c = gameChain.getState();
       const patch = { inventory: Math.max(0, c.inventory - c.pendingSales), priceCents: c.pendingPrice ?? c.priceCents, isUpgraded: c.upgrades > 0 };
       engineRef.current?.updatePlotData(0, patch);
+      const activeEvent = c.cityEvent?.name ?? "Quiet", eventTarget = c.cityEvent?.target ?? 0;
+      const g = useGameStore.getState();
+      if (g.activeEvent !== activeEvent || g.eventTarget !== eventTarget) useGameStore.setState({ activeEvent, eventTarget });
       setSelectedPlot((sp) => (sp && sp.id === 0 && (sp.inventory !== patch.inventory || sp.priceCents !== patch.priceCents || sp.isUpgraded !== patch.isUpgraded) ? { ...sp, ...patch } : sp));
     };
     sync();
     const id = setInterval(sync, 1500); // also covers the engine finishing its async load after the first chain update
-    return () => clearInterval(id);
+    return () => { clearInterval(id); useGameStore.setState({ activeEvent: "Quiet", eventTarget: 0 }); };
   }, [chainLive]);
 
   // Live Pyth SOL/USD every 15s; push the signal on-chain every 5 min

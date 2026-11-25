@@ -65,6 +65,7 @@ export interface GameState {
   activeEvent: EventType;
   eventTimeRemaining: number;
   eventMultiplier: number;
+  eventTarget: number; // picks the stall for a viral event
 
   // Auction Modal
   auctionActive: boolean;
@@ -173,6 +174,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   activeEvent: "Quiet",
   eventTimeRemaining: 0,
   eventMultiplier: 1.0,
+  eventTarget: 0,
 
   auctionActive: false,
   auctionId: 1,

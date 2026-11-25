@@ -42,4 +42,8 @@ pub enum BazaarError {
     InventoryFull,
     #[msg("Invalid amount or upgrade flag")]
     InvalidAmount,
+    #[msg("An auction is still waiting for its randomness")]
+    AuctionPending,
+    #[msg("This randomness does not match a pending auction")]
+    StaleRandomness,
 }

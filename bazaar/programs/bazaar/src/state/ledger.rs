@@ -19,5 +19,19 @@ pub struct ShopLedger {
     pub last_bid: u64,
     pub last_rivals: [u64; 3],
     pub last_won: bool,
-    pub last_slot: u64,
+    pub last_requested_at: i64, // unix time of the last auction request
+}
+
+impl ShopLedger {
+    /// A bid is reserved and its VRF randomness has not arrived yet (rival bids are still zero).
+    pub fn auction_pending(&self) -> bool {
+        self.last_bid > 0 && self.last_rivals == [0; 3]
+    }
+    /// Returns a reserved bid and forgets the request, so a late callback is rejected.
+    pub fn cancel_pending_auction(&mut self) {
+        if self.auction_pending() {
+            self.gd_credit += self.last_bid as i64;
+            self.last_bid = 0;
+        }
+    }
 }

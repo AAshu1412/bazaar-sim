@@ -13,8 +13,8 @@ const LOT_UNITS = 100;
 const STOCK_CAP = 200;
 
 /**
- * Wholesale auction, refereed by the program: three rival bids are derived on-chain, the highest bid wins,
- * a winner pays their own bid in GD and the stock is added to the player's shop.
+ * Wholesale auction on the Ephemeral Rollup: MagicBlock VRF draws three rival bids after yours is locked in, the
+ * highest bid wins, a winner pays their own bid in GD and the stock is added to the player's shop.
  */
 export const AuctionModal: React.FC = () => {
   const { auctionActive, stalls } = useGameStore();
@@ -31,7 +31,7 @@ export const AuctionModal: React.FC = () => {
 
   const names = ["You", stalls[1]?.name ?? "Bot 1", stalls[2]?.name ?? "Bot 2", stalls[3]?.name ?? "Bot 3"];
   const full = chain.inventory + LOT_UNITS > STOCK_CAP * (chain.upgrades & 2 ? 2 : 1);
-  const canBid = live && !full && bidInput >= 1 && bidInput <= chain.gd;
+  const canBid = live && chain.erMode && !full && bidInput >= 1 && bidInput <= chain.gd;
 
   useEffect(() => {
     if (!auctionActive) { setPhase("BIDDING"); setOutcome(null); setError(null); setRevealed(0); }
@@ -106,11 +106,11 @@ export const AuctionModal: React.FC = () => {
             <div>
               <h3 className="font-black text-lg text-white flex items-center gap-2">
                 Wholesale Auction
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold">ON-CHAIN</span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold">VRF</span>
               </h3>
               <p className="text-xs text-indigo-300 font-mono flex items-center gap-1.5 mt-0.5">
                 <Shield className="w-3.5 h-3.5 text-indigo-400" />
-                Sealed first-price bid • win it and your shop restocks
+                Sealed first-price bid • rivals drawn by MagicBlock VRF
               </p>
             </div>
           </div>
@@ -130,6 +130,9 @@ export const AuctionModal: React.FC = () => {
             <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200">
               <Wallet className="w-4 h-4 shrink-0" /> Connect your wallet and start a session to bid with real GD.
             </div>
+          )}
+          {live && !chain.erMode && (
+            <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200">Auctions run on the Ephemeral Rollup, which is not active right now.</div>
           )}
           {live && full && phase === "BIDDING" && (
             <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200">Your warehouse can't hold another {LOT_UNITS} units yet. Sell some stock first.</div>
@@ -205,7 +208,7 @@ export const AuctionModal: React.FC = () => {
               <div className="text-center py-2.5 text-xs">
                 {phase === "SEALED" && (
                   <p className="text-indigo-300 flex items-center justify-center gap-1.5 font-medium">
-                    <Sparkles className="w-4 h-4 animate-spin text-indigo-400" /> Sealing your bid on-chain…
+                    <Sparkles className="w-4 h-4 animate-spin text-indigo-400" /> Bid locked in. Waiting for VRF randomness…
                   </p>
                 )}
                 {phase === "REVEAL" && <p className="text-emerald-400 font-black tracking-wide animate-pulse">Opening the sealed bids…</p>}
@@ -218,7 +221,7 @@ export const AuctionModal: React.FC = () => {
                   ) : (
                     <div className="font-bold text-gray-300 space-y-1">
                       <div>Outbid. The top rival bid {topRival.toLocaleString(undefined, { maximumFractionDigits: 2 })} GD.</div>
-                      <div className="text-gray-400 font-normal">No GD was spent.</div>
+                      <div className="text-gray-400 font-normal">Your bid was returned.</div>
                     </div>
                   )
                 )}

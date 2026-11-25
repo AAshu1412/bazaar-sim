@@ -44,65 +44,6 @@ export const IX: Record<string, { disc: number[]; accounts: [string, boolean, bo
    ]
   ]
  },
- "bid_auction": {
-  "disc": [
-   174,
-   254,
-   177,
-   29,
-   20,
-   29,
-   217,
-   156
-  ],
-  "accounts": [
-   [
-    "season",
-    false,
-    false
-   ],
-   [
-    "business",
-    true,
-    false
-   ],
-   [
-    "player_gd",
-    true,
-    false
-   ],
-   [
-    "treasury",
-    true,
-    false
-   ],
-   [
-    "auction",
-    true,
-    false
-   ],
-   [
-    "session_token",
-    false,
-    false
-   ],
-   [
-    "signer",
-    true,
-    true
-   ],
-   [
-    "token_program",
-    false,
-    false
-   ],
-   [
-    "system_program",
-    false,
-    false
-   ]
-  ]
- },
  "buy_scout": {
   "disc": [
    187,
@@ -181,6 +122,59 @@ export const IX: Record<string, { disc: number[]; accounts: [string, boolean, bo
    ],
    [
     "token_program",
+    false,
+    false
+   ]
+  ]
+ },
+ "callback_auction": {
+  "disc": [
+   245,
+   137,
+   208,
+   235,
+   229,
+   204,
+   33,
+   122
+  ],
+  "accounts": [
+   [
+    "vrf_program_identity",
+    false,
+    true
+   ],
+   [
+    "business",
+    true,
+    false
+   ],
+   [
+    "ledger",
+    true,
+    false
+   ]
+  ]
+ },
+ "callback_city_event": {
+  "disc": [
+   82,
+   55,
+   55,
+   39,
+   63,
+   106,
+   191,
+   197
+  ],
+  "accounts": [
+   [
+    "vrf_program_identity",
+    false,
+    true
+   ],
+   [
+    "ledger",
     false,
     false
    ]
@@ -500,8 +494,33 @@ export const IX: Record<string, { disc: number[]; accounts: [string, boolean, bo
    ],
    [
     "signer",
-    false,
+    true,
     true
+   ],
+   [
+    "program_identity",
+    false,
+    false
+   ],
+   [
+    "oracle_queue",
+    true,
+    false
+   ],
+   [
+    "vrf_program",
+    false,
+    false
+   ],
+   [
+    "slot_hashes",
+    false,
+    false
+   ],
+   [
+    "system_program",
+    false,
+    false
    ]
   ]
  },
@@ -541,6 +560,70 @@ export const IX: Record<string, { disc: number[]; accounts: [string, boolean, bo
     "signer",
     false,
     true
+   ]
+  ]
+ },
+ "er_request_event": {
+  "disc": [
+   41,
+   12,
+   250,
+   62,
+   46,
+   7,
+   214,
+   249
+  ],
+  "accounts": [
+   [
+    "season",
+    false,
+    false
+   ],
+   [
+    "business",
+    true,
+    false
+   ],
+   [
+    "ledger",
+    true,
+    false
+   ],
+   [
+    "session_token",
+    false,
+    false
+   ],
+   [
+    "signer",
+    true,
+    true
+   ],
+   [
+    "program_identity",
+    false,
+    false
+   ],
+   [
+    "oracle_queue",
+    true,
+    false
+   ],
+   [
+    "vrf_program",
+    false,
+    false
+   ],
+   [
+    "slot_hashes",
+    false,
+    false
+   ],
+   [
+    "system_program",
+    false,
+    false
    ]
   ]
  },

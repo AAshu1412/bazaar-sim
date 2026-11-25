@@ -4,6 +4,8 @@ import { BUILDING_SPRITES } from "./buildingRegistry";
 import { TOWN, GRID as TOWN_GRID, type Lot, type TileKind } from "./townLayout";
 import { GridPathfinder, Point } from "./pathfinding";
 import { sfx } from "../audio/sfx";
+import { demandModifiers } from "./cityEvents";
+import { useGameStore } from "../store/gameStore";
 
 export type PlotOwnerType = "player" | "rivalHuman" | "bot" | "unclaimed";
 
@@ -670,14 +672,17 @@ export class IsometricEngineV3 {
 
     let bestPlot: PlotInfo = availablePlots[0];
     let highestUtility = -Infinity;
+    const { activeEvent, eventTarget } = useGameStore.getState();
+    const event = demandModifiers(activeEvent);
+    const viral = availablePlots[eventTarget % availablePlots.length];
 
     availablePlots.forEach((plot) => {
-      const priceFactor = -(plot.priceCents / 100);
+      const priceFactor = -(plot.priceCents / 100) * event.priceWeight;
       const brandBonus = plot.isUpgraded ? 0.35 : 0;
       const tierBonus = plot.tier === "Corner" ? 0.45 : plot.tier === "MainStreet" ? 0.25 : 0.1;
       const noise = (Math.random() - 0.5) * 0.2;
 
-      const utility = priceFactor + brandBonus + tierBonus + noise;
+      const utility = priceFactor + brandBonus + tierBonus + noise + (plot === viral ? event.viralBonus : 0);
       if (utility > highestUtility) {
         highestUtility = utility;
         bestPlot = plot;

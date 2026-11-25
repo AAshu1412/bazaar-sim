@@ -8,6 +8,9 @@ export const DEVNET_RPC_URL: string =
 // VITE_ER_URL points the game at a local ephemeral validator (or another region) for testing
 export const ER_RPC_URL: string = (import.meta as any).env?.VITE_ER_URL ?? "https://devnet.magicblock.app";
 export const ER_ENABLED: boolean = (import.meta as any).env?.VITE_ER !== "off";
+// MagicBlock VRF: the delegated (rollup) queue. VITE_VRF_QUEUE overrides it for a local test queue.
+export const VRF_QUEUE = new PublicKey((import.meta as any).env?.VITE_VRF_QUEUE ?? "5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc");
+export const VRF_PROGRAM_ID = new PublicKey("Vrf1RNUjXmQGjmQrQLvJHs9SNkvDJEsRVFPkfSQUwGz");
 export const PRIVATE_ER_RPC_URL = "https://devnet-per.magicblock.app";
 
 export const PROGRAM_ID = new PublicKey(

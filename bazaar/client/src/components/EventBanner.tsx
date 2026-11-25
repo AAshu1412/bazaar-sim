@@ -3,38 +3,38 @@ import { Flame, CloudRain, Sparkles, TrendingUp, AlertTriangle } from "lucide-re
 import { useGameStore, EventType } from "../store/gameStore";
 
 export const EventBanner: React.FC = () => {
-  const { activeEvent, eventMultiplier } = useGameStore();
+  const { activeEvent } = useGameStore();
 
   if (activeEvent === "Quiet") return null;
 
   const eventConfigs: Record<EventType, { title: string; desc: string; icon: React.ReactNode; color: string }> = {
     DemandSurge: {
       title: "DEMAND SURGE",
-      desc: `Market rush! Foot traffic boosted to ${(eventMultiplier).toFixed(1)}x`,
+      desc: "Market rush! Twice as many shoppers",
       icon: <TrendingUp className="w-4 h-4" />,
       color: "bg-amber-500/20 text-amber-300 border-amber-500/40",
     },
     DemandDrop: {
       title: "RAIN & SLOWDOWN",
-      desc: "Gloomy weather! Customer traffic reduced to 0.5x",
+      desc: "Gloomy weather: half as many shoppers",
       icon: <CloudRain className="w-4 h-4" />,
       color: "bg-blue-500/20 text-blue-300 border-blue-500/40",
     },
     ViralStall: {
       title: "VIRAL SOCIAL SPIKE",
-      desc: "One stall went viral on TikTok! Double routing traffic",
+      desc: "One stall went viral and is pulling in shoppers",
       icon: <Flame className="w-4 h-4" />,
       color: "bg-orange-500/20 text-orange-300 border-orange-500/40",
     },
     SupplyShock: {
       title: "SUPPLY SHOCK",
-      desc: "Supply chain freeze! All stalls lost 20% inventory",
+      desc: "Shortage rumours: shoppers put up with higher prices",
       icon: <AlertTriangle className="w-4 h-4" />,
       color: "bg-red-500/20 text-red-300 border-red-500/40",
     },
     FlashSale: {
-      title: "FLASH SALE LOCK",
-      desc: "Crazy competitor promo locked at $0.50 for 15s",
+      title: "BARGAIN FRENZY",
+      desc: "Bargain frenzy: shoppers chase the lowest price",
       icon: <Sparkles className="w-4 h-4" />,
       color: "bg-purple-500/20 text-purple-300 border-purple-500/40",
     },

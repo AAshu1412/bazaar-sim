@@ -14,12 +14,12 @@ Stack: React + Pixi (client), Anchor 1.2.2 program, MagicBlock **session-keys** 
 ## 2. Wallet, session, and signing  [ON-CHAIN]
 1. User connects a wallet (asks for nothing).
 2. "Start session" = **the only wallet approval**. One transaction creates a MagicBlock session token (6 days, scoped to this program) and tops the session key up with 0.04 SOL for fees. Wallet needs about 0.045 devnet SOL and must be set to Devnet.
-3. Every later transaction is signed by the session key (stored in localStorage per wallet): create season, join, claim plot, open shop, reprice, restock, upgrade, auction bids, customer payments, Pyth crank. No popups.
+3. Every later transaction is signed by the session key (stored in localStorage per wallet): create season, join, claim plot, open shop, reprice, restock, upgrade, auction bids, city event requests, customer payments, Pyth crank. No popups.
 4. Every game instruction accepts either the wallet itself or a valid session key whose token names the wallet as authority. Strangers are rejected (`Unauthorized`), verified by tests.
 5. If the session key's SOL runs low or the session expires, the UI asks for one more approval (revoke + recreate).
 
 ## 2b. Ephemeral Rollup  [ON-CHAIN, MagicBlock]
-After setup the client delegates the shop: `init_ledger` (once), then `delegate_shop`. Delegating **escrows your GD in the treasury** (token balance shows 0 on devnet), records it in a `ShopLedger` account, and hands the `Business` + ledger accounts to the rollup validator (`https://devnet.magicblock.app`, override with `VITE_ER_URL`; `VITE_ER=off` disables). On the rollup: `set_business_price`, `er_restock`, `er_serve_customers`, `er_buy_upgrade`, `er_bid_auction`. Spending is limited to escrow + session net. State auto-commits to devnet every 30 s. **Settle** (header button) calls `undelegate_shop`, then `settle_shop` pays escrow + net into your token account, then delegates again. PlayerState is not delegated; SPL token accounts cannot be delegated by this program, which is why the ledger exists.
+After setup the client delegates the shop: `init_ledger` (once), then `delegate_shop`. Delegating **escrows your GD in the treasury** (token balance shows 0 on devnet), records it in a `ShopLedger` account, and hands the `Business` + ledger accounts to the rollup validator (`https://devnet.magicblock.app`, override with `VITE_ER_URL`; `VITE_ER=off` disables). On the rollup: `set_business_price`, `er_restock`, `er_serve_customers`, `er_buy_upgrade`, `er_bid_auction`, `er_request_event`. Spending is limited to escrow + session net. State auto-commits to devnet every 30 s. **Settle** (header button) calls `undelegate_shop`, then `settle_shop` pays escrow + net into your token account, then delegates again. PlayerState is not delegated; SPL token accounts cannot be delegated by this program, which is why the ledger exists.
 Verified locally (rollup validator 2.0.3 on an **Agave 4.2.2** base validator): delegation, all rollup operations, escrow limits, plain commit, and the full Settle cycle (undelegate, pay out, delegate again) with an exact payout. Older base validators (3.0.15, 4.0.0) cannot read the rollup's commit transactions. Local test recipe: run `mb-test-validator` from `@magicblock-labs/ephemeral-validator` with Agave 4.2.2 first on PATH, then `ephemeral-validator --remotes localhost --listen 127.0.0.1:7799`, and start the client with `VITE_RPC_URL=http://127.0.0.1:8899 VITE_ER_URL=http://127.0.0.1:7799`.
 
 ## 3. Setup flow the first time you press play  [ON-CHAIN]
@@ -38,7 +38,7 @@ Every 1.2 s a townsperson spawns at a random gate and picks ONE shop (winner tak
 utility = -price($) + 0.35 (if shop has Signage) + tierBonus (Corner 0.45, MainStreet 0.25, other 0.10) + random(-0.1..0.1)
 ```
 Only claimed shops with stock >= 1 are candidates. The customer walks (A* over roads/sidewalks) to the shop door, pauses ~0.6 s, buys 1 unit at the shop's price, then walks to a random exit gate.
-NOT in the formula: reputation, events, Pyth/oracle signals, distance, product type, day/night, any VRF (noise is `Math.random`).
+Active city events change the spawn rate, the price weight or one stall's score (section 8b). NOT in the formula: reputation, Pyth/oracle signals, distance, product type, day/night. The noise is `Math.random`.
 Consequence: price differences above ~0.2 decide everything. At $2.75 on the Corner slot your shop wins nearly all customers; around $3.40 you lose most.
 A different, unused formula exists in `programs/bazaar/src/utils.rs` (`calculate_customer_utility`, cents-based, includes reputation and a VRF-noise argument). Nothing calls it.
 
@@ -52,8 +52,20 @@ When a simulated customer buys from plot #0, the client calls `recordSale()`. Sa
 - **Signage (-1,000 GD)** [ON-CHAIN purchase; effect CLIENT-SIM]: sets upgrade flag 1. In the game it only adds +0.35 to your customer score (and flips `isUpgraded`). The other upgrade flags exist in the program (2 Storage = doubles cap, 4 Second Counter, 8 Brand) but have no UI, and only Storage changes anything on-chain; Second Counter and Brand have no effect anywhere.
 - **Hire Manager** [UI-ONLY]: just opens the Director toolbar. The `hire_manager`/`fire_manager` instructions exist but are never called.
 
-## 8. Wholesale auction (Town Hall landmark, or the left-rail Auction button)  [ON-CHAIN]
-`bid_auction(auction_id, units=100, bid)`: sealed first-price auction refereed by the program. Wholesale value of the lot = units x unit cost (about 137 GD). Three **rival bids are derived on-chain** from the slot, season and auction id, each 60-119% of that value (xorshift on the slot, NOT a VRF). Highest bid wins; ties go to rivals. **Winner pays their own bid in GD and +100 units are added to your shop's stock on-chain. Loser pays nothing.** One bid per auction id. Fails if stock would exceed the cap. The rival bots are simulated by the program, not real players.
+## 8. Wholesale auction (Town Hall landmark, or the left-rail Auction button)  [ON-CHAIN, Ephemeral Rollup + MagicBlock VRF]
+`er_bid_auction(auction_id, units=100, bid)`: sealed first-price auction. The program reserves your bid in the shop ledger and requests randomness from **MagicBlock VRF** (rollup queue, fee-exempt). The oracle answers with `callback_auction(randomness)`, which only the VRF program can sign for. It draws **three rival bids**, each 60-119% of the lot's wholesale value (units x unit cost, about 137 GD), so they do not exist when you bid. Highest bid wins; ties go to rivals. **Winner pays their own bid and gets +100 stock; a loser's bid is returned.** One pending auction per shop; an unanswered one can be replaced after 150 s, and Settle returns its bid. Each auction id works once. The rivals are random numbers, not real players. Auctions need the rollup: with `VITE_ER=off` or the rollup down they are unavailable.
+"Provably fair" covers the rival draw only: it relies on MagicBlock's VRF oracle, and your bid is a normal rollup transaction (public, not encrypted).
+
+## 8b. City events  [VRF draw ON-CHAIN, effect CLIENT-SIM]
+Every 60 s (first after 8 s) the client calls `er_request_event`; the VRF callback logs `CityEvent kind=.. target=..` and the client picks it up from the ledger's logs. Each lasts 30 s and shows the banner:
+| Event | Effect on the client demand formula |
+|---|---|
+| Demand surge | twice as many shoppers |
+| Rain & slowdown | half as many shoppers |
+| Viral stall | one stall (picked by the VRF value) gets +1.2 utility |
+| Supply shock | price counts 0.4x (higher prices tolerated) |
+| Bargain frenzy | price counts 2.5x |
+Nothing about the event is stored on-chain, and the player triggers the request, so it is verifiable randomness, not an enforced game rule.
 
 ## 9. Pyth oracle  [partly ON-CHAIN]
 - Header shows live SOL/USD and its real 1-hour change from Pyth Hermes (via the Vite dev proxy that injects the API key from `client/.env.local`, `PYTH_API_KEY`).
@@ -69,7 +81,7 @@ Price tags above shops: coloured by owner type (you green, rival red, bots indig
 ## 11. Landmarks (click them)
 | Landmark | What it does today |
 |---|---|
-| Town Hall | Opens the **on-chain auction** (section 8). |
+| Town Hall | Opens the **VRF auction** (section 8). |
 | Bank | **UI-ONLY**: take a loan (2,000/5,000/10,000 GD) or repay; loan sits in local component state, moves no GD, interest rate shown = max(3%, 8% - reputation x 0.05) per day, never charged. The program has `take_loan`/`repay_loan` but they are never called and do not move tokens. |
 | Intel Guild | **UI-ONLY**: "scout" a rival (500 GD) shows hardcoded numbers ("wholesale $1.10"); "buyout offer" just flips a sent flag. Program has `buy_scout`/`make_buyout_offer`, never called. |
 | Manager Office | Opens the Director toolbar. No real manager mechanic. |
@@ -81,20 +93,19 @@ Price tags above shops: coloured by owner type (you green, rival red, bots indig
 - **Reputation** (0-100, starts 45 in UI vs 20 on-chain): display only, plus the fake bank rate. See section 5.
 - **City ledger**: feed of real transactions (with explorer links) when connected, plus simulation lines when not.
 - **Status board** (P&L + leaderboard): P&L uses local counters (customers served today, revenue today) with hardcoded expenses (wholesale $5, rent $4). Leaderboard ranks plots by local daily revenue.
-- **Events** (demand surge/drop, viral stall, supply shock, flash sale): UI banner exists but nothing ever triggers an event, and customer logic ignores them.
 - **Multiplayer lobby** ("World" button): UI-ONLY; shows "2/4 players, bot backfill". No networking.
 - **Director toolbar** (demo tools): toggle night, SOL pump display, margin-call ledger message, fast-forward day (+15 reputation, +2,400 cash, +3,500 net worth in the *simulated* numbers only).
 - **Guided tour**: 5-step explainer popup.
 - **Not connected**: the whole game still runs as a pure local simulation (cash goes up from fake sales).
 
 ## 13. In the README / program but NOT implemented
-Private ER/TDX sealed bids (the auction is a normal devnet transaction), real VRF, cranks (day open/close, rent, interest, liquidations), Ephemeral SPL settlement, Magic Actions pot payout, season end and payout, rent/leases between players, loans and liquidation, buyouts, real managers, spectator markets, sponsorship, events. Program instructions for several exist (`open_day`, `close_day`, `take_loan`, `hire_manager`, `buy_scout`, ...) but the client never calls them.
+Private ER/TDX sealed bids (bids are public rollup transactions), cranks (day open/close, rent, interest, liquidations), Ephemeral SPL settlement, Magic Actions pot payout, season end and payout, rent/leases between players, loans and liquidation, buyouts, real managers, spectator markets, sponsorship. Program instructions for several exist (`open_day`, `close_day`, `take_loan`, `hire_manager`, `buy_scout`, ...) but the client never calls them.
 Also stale: `keeper/` and `tests/` target an older round/auction design and will not work with the current program.
 
 ## 14. Known issues and risks
 1. `serve_customers` self-farming (section 6): unlimited GD in your own season by setting a high price, selling to yourself and restocking.
 2. Demand is client-side and trusted; bots are static. A fair game needs demand, bots and events on-chain.
-3. Reputation, events and oracle signals exist but are not used by demand. Reputation value mismatch (45 vs 20).
+3. Reputation and oracle signals exist but are not used by demand. Reputation value mismatch (45 vs 20).
 4. Net worth, bank, intel and P&L numbers are partly or fully fake.
 5. The session key and wallet-less simulation mode use plaintext localStorage.
 6. SBPF v3 is not active on devnet/mainnet: always build with `yarn build` (`anchor build --arch v0`).

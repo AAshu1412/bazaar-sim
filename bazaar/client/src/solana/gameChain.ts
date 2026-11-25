@@ -1,3 +1,4 @@
+import { parseCityEvent, EVENT_SECONDS, type CityEvent } from "../engine/cityEvents";
 /**
  * On-chain game client. The player's real wallet signs exactly once, to authorise a MagicBlock session key
  * (and top it up with a little SOL for fees). Every game transaction after that is signed by the session key:
@@ -5,7 +6,7 @@
  * from the season treasury via serve_customers.
  */
 import {
-  ComputeBudgetProgram, Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction, TransactionInstruction,
+  ComputeBudgetProgram, Connection, Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, SYSVAR_SLOT_HASHES_PUBKEY, Transaction, TransactionInstruction,
 } from "@solana/web3.js";
 import { Buffer } from "buffer";
 import { HermesClient } from "@pythnetwork/hermes-client";
@@ -13,7 +14,7 @@ import {
   DELEGATION_PROGRAM_ID, MAGIC_PROGRAM_ID, MAGIC_CONTEXT_ID,
   delegateBufferPdaFromDelegatedAccountAndOwnerProgram, delegationRecordPdaFromDelegatedAccount, delegationMetadataPdaFromDelegatedAccount,
 } from "@magicblock-labs/ephemeral-rollups-sdk";
-import { PROGRAM_ID, router, ER_ENABLED } from "./router";
+import { PROGRAM_ID, router, ER_ENABLED, VRF_QUEUE, VRF_PROGRAM_ID } from "./router";
 import { IX } from "./idlSpec";
 import { SOL_FEED_ID, BTC_FEED_ID, hermesUrl } from "./pyth";
 
@@ -54,6 +55,7 @@ export interface ChainState {
   /** GD earned/spent in the rollup that has not been settled to the token account yet */
   unsettledGd: number;
   detail?: string;
+  cityEvent: CityEvent | null; // active VRF event
 }
 export interface AuctionOutcome {
   won: boolean;
@@ -70,7 +72,7 @@ const u32 = (n: number) => { const b = Buffer.alloc(4); b.writeUInt32LE(n); retu
 const u16 = (n: number) => { const b = Buffer.alloc(2); b.writeUInt16LE(n); return b; };
 const i64 = (n: number | bigint) => { const b = Buffer.alloc(8); b.writeBigInt64LE(BigInt(n)); return b; };
 
-const EMPTY: ChainState = { phase: "disconnected", sessionSol: 0, gd: 0, inventory: 0, priceCents: 275, pendingPrice: null, unitCostCents: 137, upgrades: 0, lifetimeRevenueGd: 0, customersServed: 0, pendingSales: 0, erMode: false, settling: false, unsettledGd: 0 };
+const EMPTY: ChainState = { phase: "disconnected", sessionSol: 0, gd: 0, inventory: 0, priceCents: 275, pendingPrice: null, unitCostCents: 137, upgrades: 0, lifetimeRevenueGd: 0, customersServed: 0, pendingSales: 0, erMode: false, settling: false, unsettledGd: 0, cityEvent: null };
 
 export class GameChain {
   private conn: Connection = router.baseConn;
@@ -87,6 +89,8 @@ export class GameChain {
   private queue: Promise<unknown> = Promise.resolve();
   private log: Log = () => {};
   private runId = 0;
+  private eventSub: number | null = null;
+  private eventTimers: ReturnType<typeof setTimeout>[] = [];
   private lastSendWasEr = false;
 
   // ---------- PDAs ----------
@@ -133,6 +137,8 @@ export class GameChain {
       buffer_ledger: delegateBufferPdaFromDelegatedAccountAndOwnerProgram(this.ledger, PROGRAM_ID),
       delegation_record_ledger: delegationRecordPdaFromDelegatedAccount(this.ledger),
       delegation_metadata_ledger: delegationMetadataPdaFromDelegatedAccount(this.ledger),
+      oracle_queue: VRF_QUEUE, vrf_program: VRF_PROGRAM_ID, slot_hashes: SYSVAR_SLOT_HASHES_PUBKEY,
+      program_identity: this.pda([Buffer.from("identity")]),
       owner_program: PROGRAM_ID, delegation_program: DELEGATION_PROGRAM_ID, magic_program: MAGIC_PROGRAM_ID, magic_context: MAGIC_CONTEXT_ID,
       ...extra,
     };
@@ -266,6 +272,7 @@ export class GameChain {
     this.set({ phase: "live", detail: undefined });
     if (this.pollTimer) clearInterval(this.pollTimer);
     this.pollTimer = setInterval(() => this.refresh().catch(() => {}), 3000);
+    this.startCityEvents();
   }
 
   // ---------- Ephemeral Rollup lifecycle ----------
@@ -323,10 +330,9 @@ export class GameChain {
       this.set({ settling: true });
       try {
         const validator = await this.erValidator();
-        const owed = this.state.unsettledGd;
         await this.timed("TICK", "Committing the shop from the Ephemeral Rollup back to devnet", () => this.send([this.ix("undelegate_shop", Buffer.alloc(0), this.common())], 200_000, true));
         await this.waitFor(async () => !(await this.isDelegated()), 90_000, "the shop to return to devnet");
-        await this.timed("TICK", `Settled ${owed >= 0 ? "+" : ""}${owed.toFixed(2)} GD to your wallet token account`, () => this.send([this.ix("settle_shop", Buffer.alloc(0), this.common())], 250_000));
+        await this.timed("TICK", "Settled your rollup GD to your wallet token account", () => this.send([this.ix("settle_shop", Buffer.alloc(0), this.common())], 250_000));
         await this.timed("TICK", "Shop delegated to the Ephemeral Rollup again", () => this.send([this.delegateIx(validator)], 400_000));
         await this.waitFor(async () => !!(await router.erConn.getAccountInfo(this.ledger)), 30_000, "the rollup to receive the shop");
       } catch (e) {
@@ -341,7 +347,42 @@ export class GameChain {
     });
   }
 
+  // ---------- VRF city events ----------
+  /** Every minute ask MagicBlock VRF for an event; the oracle's callback announces it in the rollup logs. */
+  private startCityEvents() {
+    this.stopCityEvents();
+    if (!ER_ENABLED) return;
+    let clear: ReturnType<typeof setTimeout> | undefined;
+    this.eventSub = router.erConn.onLogs(this.ledger, ({ logs, signature, err }) => {
+      const event = !err && parseCityEvent(logs);
+      if (!event) return;
+      this.set({ cityEvent: { ...event, signature } });
+      this.log("VRF", { message: `City event drawn by VRF: ${event.name}`, signature, latencyMs: 0, isLive: true, er: true });
+      clearTimeout(clear);
+      clear = setTimeout(() => this.set({ cityEvent: null }), EVENT_SECONDS * 1000);
+      this.eventTimers.push(clear);
+    }, "confirmed");
+    this.eventTimers = [setTimeout(() => this.requestEvent(), 8_000), setInterval(() => this.requestEvent(), 60_000)];
+  }
+  private stopCityEvents() {
+    this.eventTimers.forEach((t) => clearTimeout(t)); // clears intervals too
+    this.eventTimers = [];
+    if (this.eventSub !== null) router.erConn.removeOnLogsListener(this.eventSub).catch(() => {});
+    this.eventSub = null;
+  }
+  requestEvent() {
+    return this.enqueue(async () => {
+      if (!this.live || !this.state.erMode || this.state.settling) return;
+      try {
+        await this.send([this.ix("er_request_event", u64(Date.now()), this.common())], 200_000, true);
+      } catch (e) {
+        this.log("VRF", { message: `City event request failed: ${String((e as { message?: string })?.message ?? e).slice(0, 70)}`, signature: "sim-vrf", latencyMs: 0, isLive: false });
+      }
+    });
+  }
+
   disconnect() {
+    this.stopCityEvents();
     this.runId++;
     if (this.pollTimer) clearInterval(this.pollTimer);
     if (this.saleTimer) clearTimeout(this.saleTimer);
@@ -436,47 +477,34 @@ export class GameChain {
     });
   }
   /**
-   * Sealed-bid wholesale auction, refereed by the program. A winning bid is paid in GD and the stock is added
-   * to the shop on-chain; a losing bid costs nothing. Resolves with the on-chain result (rival bids included).
+   * Sealed-bid wholesale auction on the rollup. The bid is reserved on-chain, MagicBlock VRF then draws the rival
+   * bids in a callback. A winning bid is paid in GD and restocks the shop; a losing bid is returned.
    */
-  auctionBid(bidGd: number, units = 100): Promise<AuctionOutcome> {
-    return this.enqueue(async () => {
-      if (!this.live) throw new Error("Connect your wallet and start a session first");
-      const id = BigInt(Math.floor(Date.now() / 1000)) * 1000n + BigInt(Math.floor(Math.random() * 1000));
-      const er = this.state.erMode;
-      const t0 = performance.now();
-      const args = Buffer.concat([u64(id), u32(units), u64(Math.round(bidGd * GD_UNIT))]);
-      let out: AuctionOutcome;
-      let signature: string;
-      if (er) {
-        signature = await this.send([this.ix("er_bid_auction", args, this.common())], 250_000, true);
-        const acc = await router.erConn.getAccountInfo(this.ledger, "confirmed");
-        if (!acc) throw new Error("auction result not found");
-        const d = acc.data; // ledger: ... last_auction_id@128 last_units@136 last_bid@140 last_rivals@148 last_won@172
-        out = {
-          units: d.readUInt32LE(136), bidGd: Number(d.readBigUInt64LE(140)) / GD_UNIT,
-          rivalsGd: [0, 1, 2].map((i) => Number(d.readBigUInt64LE(148 + i * 8)) / GD_UNIT) as [number, number, number],
-          won: d[172] === 1, signature,
-        };
-      } else {
-        const auction = this.pda([Buffer.from("auction"), this.season.toBuffer(), u64(id)]);
-        signature = await this.send([this.ix("bid_auction", args, { ...this.common(), auction })], 250_000);
-        const acc = await this.conn.getAccountInfo(auction, "confirmed");
-        if (!acc) throw new Error("auction result not found");
-        const d = acc.data; // disc8 season32 bidder32 auction_id8 units4 bid8 rivals24 won1 slot8
-        out = {
-          units: d.readUInt32LE(80), bidGd: Number(d.readBigUInt64LE(84)) / GD_UNIT,
-          rivalsGd: [0, 1, 2].map((i) => Number(d.readBigUInt64LE(92 + i * 8)) / GD_UNIT) as [number, number, number],
-          won: d[116] === 1, signature,
-        };
-      }
-      this.log("AUCTION", {
-        message: out.won ? `Auction won: paid ${out.bidGd} GD, +${out.units} units of stock` : `Auction lost: top rival bid ${Math.max(...out.rivalsGd)} GD (no GD spent)`,
-        signature, latencyMs: Math.round(performance.now() - t0), isLive: true, er,
-      });
-      await this.refresh();
-      return out;
+  async auctionBid(bidGd: number, units = 100): Promise<AuctionOutcome> {
+    if (!this.live) throw new Error("Connect your wallet and start a session first");
+    if (!this.state.erMode) throw new Error("Auctions run on the Ephemeral Rollup (VRF randomness), which is not active");
+    const id = BigInt(Math.floor(Date.now() / 1000)) * 1000n + BigInt(Math.floor(Math.random() * 1000));
+    const t0 = performance.now();
+    const args = Buffer.concat([u64(id), u32(units), u64(Math.round(bidGd * GD_UNIT))]);
+    const signature = await this.enqueue(() => this.send([this.ix("er_bid_auction", args, this.common())], 250_000, true));
+    this.refresh().catch(() => {});
+    // ledger: ... last_auction_id@128 last_units@136 last_bid@140 last_rivals@148 last_won@172
+    let d!: Buffer;
+    await this.waitFor(async () => {
+      d = (await router.erConn.getAccountInfo(this.ledger, "confirmed"))!.data;
+      return d.readBigUInt64LE(128) === id && d.readBigUInt64LE(148) !== 0n;
+    }, 30_000, "VRF randomness. Your bid stays reserved and is returned on Settle, or when you bid again after 150 s");
+    const out: AuctionOutcome = {
+      units: d.readUInt32LE(136), bidGd: Number(d.readBigUInt64LE(140)) / GD_UNIT,
+      rivalsGd: [0, 1, 2].map((i) => Number(d.readBigUInt64LE(148 + i * 8)) / GD_UNIT) as [number, number, number],
+      won: d[172] === 1, signature,
+    };
+    this.log("AUCTION", {
+      message: out.won ? `Auction won (VRF): paid ${out.bidGd} GD, +${out.units} units of stock` : `Auction lost (VRF): top rival bid ${Math.max(...out.rivalsGd)} GD (bid returned)`,
+      signature, latencyMs: Math.round(performance.now() - t0), isLive: true, er: true,
     });
+    await this.refresh();
+    return out;
   }
 
   /** A simulated townsperson walked out of the shop: queue it; sales are paid on-chain in small batches. */
