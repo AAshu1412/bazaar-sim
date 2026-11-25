@@ -11,7 +11,6 @@ import {
 import { Buffer } from "buffer";
 import { PROGRAM_ID, router } from "./router";
 import { HermesClient } from "@pythnetwork/hermes-client";
-import { PythSolanaReceiver } from "@pythnetwork/pyth-solana-receiver";
 import { SOL_FEED_ID, BTC_FEED_ID, hermesUrl } from "./pyth";
 
 const KEY_STORAGE = "bazaar.burner";
@@ -145,6 +144,8 @@ export class OnChainService {
         publicKey: kp.publicKey, payer: kp,
         signTransaction: sign, signAllTransactions: async (txs: any[]) => Promise.all(txs.map(sign)),
       };
+      // lazy: the Pyth SDK is large and only needed for the 5-minute crank
+      const { PythSolanaReceiver } = await import("@pythnetwork/pyth-solana-receiver");
       const receiver = new PythSolanaReceiver({ connection: router.baseConn, wallet: wallet as any });
 
       const updates = (await hermes.getLatestPriceUpdates([SOL_FEED_ID, BTC_FEED_ID], { encoding: "base64" })).binary.data;
