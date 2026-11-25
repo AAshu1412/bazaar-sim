@@ -27,7 +27,7 @@ export const DemoDirectorToolbar: React.FC<DemoDirectorToolbarProps> = ({
     return (
       <button
         onClick={onToggle}
-        className="fixed bottom-16 left-6 z-40 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-mono font-black text-xs rounded-xl shadow-xl border border-indigo-400/50 flex items-center gap-2 transition-all active:scale-95"
+        className="fixed bottom-[11.5rem] left-24 z-40 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-mono font-black text-xs rounded-xl shadow-xl border border-indigo-400/50 flex items-center gap-2 transition-all active:scale-95"
       >
         <Sliders className="w-4 h-4" />
         <span>Judge Demo Toolbar</span>
@@ -36,7 +36,7 @@ export const DemoDirectorToolbar: React.FC<DemoDirectorToolbarProps> = ({
   }
 
   return (
-    <div className="fixed bottom-16 left-6 z-40 bg-[#0e1424] border-2 border-indigo-500 rounded-2xl p-4 shadow-2xl w-80 backdrop-blur-md animate-slideUp">
+    <div className="fixed bottom-[11.5rem] left-24 z-40 bg-[#0e1424] border-2 border-indigo-500 rounded-2xl p-4 shadow-2xl w-80 backdrop-blur-md animate-slideUp">
       <div className="flex items-center justify-between mb-3 pb-2 border-b border-[#232f48]">
         <div className="flex items-center gap-2">
           <Sliders className="w-4 h-4 text-indigo-400" />

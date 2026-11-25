@@ -34,12 +34,12 @@ export const CityLedger: React.FC = () => {
           {cityLedger.map((item: LedgerItem) => (
             <div
               key={item.id}
-              className="flex items-center justify-between px-4 py-1.5 hover:bg-bazaar-card/40 transition-colors text-[11px]"
+              className="flex items-center justify-between gap-3 px-4 py-1.5 hover:bg-bazaar-card/40 transition-colors text-[11px]"
             >
-              <div className="flex items-center gap-3">
-                <span className="text-gray-500 text-[10px]">{item.time}</span>
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="shrink-0 whitespace-nowrap text-gray-500 text-[10px]">{item.time}</span>
                 <span
-                  className={`px-1.5 py-0.2 rounded font-extrabold text-[9px] ${
+                  className={`shrink-0 whitespace-nowrap px-1.5 py-0.2 rounded font-extrabold text-[9px] ${
                     item.network === "PER"
                       ? "bg-purple-500/20 text-purple-400"
                       : item.network === "ER"
@@ -49,7 +49,7 @@ export const CityLedger: React.FC = () => {
                 >
                   [{item.network} {item.latencyMs}ms]
                 </span>
-                <span className="text-gray-200">{item.message}</span>
+                <span className="text-gray-200 truncate" title={item.message}>{item.message}</span>
               </div>
 
               {item.signature.length > 40 ? (
@@ -57,13 +57,13 @@ export const CityLedger: React.FC = () => {
                   href={`https://explorer.solana.com/tx/${item.signature}?cluster=devnet`}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-1 text-gray-400 hover:text-indigo-400 transition-colors ml-4"
+                  className="flex shrink-0 items-center gap-1 text-gray-400 hover:text-indigo-400 transition-colors"
                 >
                   <span>{item.signature.substring(0, 8)}...</span>
                   <ExternalLink className="w-3 h-3" />
                 </a>
               ) : (
-                <span className="text-gray-600 ml-4">{item.signature.substring(0, 8)}...</span>
+                <span className="shrink-0 text-gray-600">{item.signature.substring(0, 8)}...</span>
               )}
             </div>
           ))}

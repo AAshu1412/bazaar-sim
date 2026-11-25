@@ -40,6 +40,7 @@ import { useGameStore } from "./store/gameStore";
 import { sfx } from "./audio/sfx";
 import { onChainService } from "./solana/onChainService";
 import { fetchSolPrice } from "./solana/pyth";
+import { WalletChip } from "./components/WalletChip";
 
 export const App: React.FC = () => {
   const {
@@ -233,6 +234,9 @@ export const App: React.FC = () => {
   // Fund burner + create season/plot/business on devnet (idempotent)
   useEffect(() => {
     onChainService.bootstrap(logChain("TICK"));
+    // while unfunded, re-check every 10s so the game goes live as soon as the wallet gets SOL
+    const id = setInterval(() => onChainService.poll(logChain("TICK")), 10_000);
+    return () => clearInterval(id);
   }, []);
 
   // Live Pyth SOL/USD every 15s; push the signal on-chain every 5 min
@@ -293,7 +297,7 @@ export const App: React.FC = () => {
       />
 
       {/* TOP FLOATING BAR: Gilded Merchant Guild Header */}
-      <header className="fixed top-3 left-4 right-4 z-30 pointer-events-none flex items-center justify-between">
+      <header className="fixed top-3 left-4 right-4 z-30 pointer-events-none flex items-center justify-between gap-3 [&_*]:whitespace-nowrap">
         {/* Left Badge: Title & Season Day */}
         <div className="pointer-events-auto flex items-center gap-3 bg-[#1c1815]/92 border border-[#d4a359]/35 px-4 py-2.5 rounded-2xl shadow-2xl backdrop-blur-md">
           <div className="flex items-center gap-2">
@@ -303,7 +307,7 @@ export const App: React.FC = () => {
                 <h1 className="font-serif font-black text-base tracking-wider text-amber-300 uppercase leading-none">
                   Bazaar v2
                 </h1>
-                <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#d4a359]/20 text-[#d4a359] border border-[#d4a359]/40 font-mono font-bold">
+                <span className="hidden 2xl:inline text-[9px] px-2 py-0.5 rounded-full bg-[#d4a359]/20 text-[#d4a359] border border-[#d4a359]/40 font-mono font-bold">
                   8 PRIMITIVES
                 </span>
               </div>
@@ -322,7 +326,7 @@ export const App: React.FC = () => {
                 isNight ? "bg-indigo-400 animate-pulse" : "bg-emerald-400"
               }`}
             />
-            <span className="text-gray-300 font-bold">
+            <span className="hidden 2xl:inline text-gray-300 font-bold" title={isNight ? "Overnight (10s ticks)" : "Market hours (1s ticks)"}>
               {isNight ? "Overnight (10s)" : "Market Hours (1s)"}
             </span>
             <span className="text-amber-400 font-bold bg-[#120f0d] px-2 py-0.5 rounded border border-[#d4a359]/20">
@@ -372,7 +376,7 @@ export const App: React.FC = () => {
         {/* Right Badge: Pyth Lazer Feed & Controls */}
         <div className="pointer-events-auto flex items-center gap-2.5 bg-[#1c1815]/92 border border-[#d4a359]/35 p-1.5 rounded-2xl shadow-2xl backdrop-blur-md">
           <div className="flex items-center gap-2 px-3 py-1 bg-[#120f0d] border border-[#d4a359]/20 rounded-xl text-xs font-mono">
-            <span className="text-gray-400">Pyth SOL:</span>
+            <span className="text-gray-400"><span className="hidden 2xl:inline">Pyth </span>SOL:</span>
             {(() => {
               const change = solPumpChange > 0 ? solPumpChange : solLiveChange;
               return (
@@ -387,10 +391,12 @@ export const App: React.FC = () => {
             })()}
           </div>
 
+          <WalletChip />
+
           <button
             onClick={() => setShowMultiplayerLobby(true)}
             title="Multiplayer World & Bot Backfill"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 rounded-xl text-xs font-bold transition-all"
+            className="hidden 2xl:flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 rounded-xl text-xs font-bold transition-all"
           >
             <Globe2 className="w-3.5 h-3.5" />
             <span>World</span>
@@ -399,7 +405,7 @@ export const App: React.FC = () => {
           <button
             onClick={() => setShowStatusBoard(true)}
             title="Status Board & P&L Dashboard"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold transition-all"
+            className="hidden 2xl:flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold transition-all"
           >
             <BarChart3 className="w-3.5 h-3.5" />
             <span>P&L</span>

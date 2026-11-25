@@ -18,6 +18,14 @@ const SEASON_STORAGE = "bazaar.season";
 const PLOT_ID = 0; // the local player's stall
 const MIN_LAMPORTS = 0.02 * LAMPORTS_PER_SOL;
 
+export type ChainState = "connecting" | "unfunded" | "live" | "error";
+export interface ChainStatus {
+  state: ChainState;
+  address: string;
+  balanceSol: number;
+  detail?: string;
+}
+
 export interface TxResult {
   signature: string;
   latencyMs: number;
@@ -51,6 +59,8 @@ export class OnChainService {
   private ready: Promise<boolean> | null = null;
   private businessPda: PublicKey | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  private listeners = new Set<() => void>();
+  private _status: ChainStatus;
 
   constructor() {
     const saved = localStorage.getItem(KEY_STORAGE);
@@ -59,8 +69,33 @@ export class OnChainService {
       : Keypair.generate();
     if (!saved) localStorage.setItem(KEY_STORAGE, JSON.stringify(Array.from(this.burner.secretKey)));
 
+    this._status = { state: "connecting", address: this.burner.publicKey.toBase58(), balanceSol: 0 };
     this.seasonId = Number(localStorage.getItem(SEASON_STORAGE)) || Date.now();
     localStorage.setItem(SEASON_STORAGE, String(this.seasonId));
+  }
+
+  /** useSyncExternalStore-compatible: stable snapshot object, replaced on change */
+  public getStatus = () => this._status;
+  public subscribe = (fn: () => void) => {
+    this.listeners.add(fn);
+    return () => {
+      this.listeners.delete(fn);
+    };
+  };
+  private setStatus(patch: Partial<ChainStatus>) {
+    this._status = { ...this._status, ...patch };
+    this.listeners.forEach((fn) => fn());
+  }
+
+  /** Re-check balance; if the wallet just got funded, retry bootstrap. Called on a timer while unfunded. */
+  public async poll(log: Log): Promise<void> {
+    try {
+      const lamports = await router.baseConn.getBalance(this.burner.publicKey);
+      this.setStatus({ balanceSol: lamports / LAMPORTS_PER_SOL });
+      if (this._status.state === "unfunded" && lamports >= MIN_LAMPORTS) await this.bootstrap(log);
+    } catch {
+      /* RPC hiccup: try again next poll */
+    }
   }
 
   private async send(ixs: TransactionInstruction[]): Promise<string> {
@@ -76,7 +111,12 @@ export class OnChainService {
   /** Idempotent: fund burner, then create season → plot → lease → business if missing. */
   public bootstrap(log: Log): Promise<boolean> {
     this.ready ??= this.doBootstrap(log).catch((e) => {
-      log(`On-chain setup skipped: ${(e as Error).message}`, { signature: "sim-setup", latencyMs: 0, isLive: false });
+      const msg = (e as Error).message;
+      const unfunded = msg.startsWith("fund burner");
+      if (this._status.state !== (unfunded ? "unfunded" : "error"))
+        log(unfunded ? "Wallet needs devnet SOL to go on-chain (running simulated)" : `On-chain setup failed: ${msg}`,
+          { signature: "sim-setup", latencyMs: 0, isLive: false });
+      this.setStatus({ state: unfunded ? "unfunded" : "error", detail: msg });
       this.ready = null; // allow retry on next reprice
       return false;
     });
@@ -91,7 +131,9 @@ export class OnChainService {
       log(msg, { signature, latencyMs: Math.round(performance.now() - t0), isLive: true });
 
     // devnet RPC faucet is closed: user must fund the burner at https://faucet.solana.com
-    if ((await conn.getBalance(me)) < MIN_LAMPORTS)
+    const bal = await conn.getBalance(me);
+    this.setStatus({ balanceSol: bal / LAMPORTS_PER_SOL });
+    if (bal < MIN_LAMPORTS)
       throw new Error(`fund burner ${me.toBase58()} with devnet SOL at faucet.solana.com`);
 
     const season = router.getSeasonPDA(this.seasonId);
@@ -119,6 +161,7 @@ export class OnChainService {
       const data = Buffer.concat([await disc("open_business"), Buffer.from([0]), u16(300)]); // CoffeeCart @ $3.00
       step("Corner Roast business opened", await this.send([this.ix(data, [w(business), w(plot), w(me, true), sys])]));
     }
+    this.setStatus({ state: "live", detail: undefined });
     return true;
   }
 
@@ -133,7 +176,7 @@ export class OnChainService {
   ): Promise<void> {
     const start = performance.now();
     try {
-      if (!(await this.bootstrap(log))) throw new Error("not bootstrapped");
+      if (!(await this.bootstrap(log))) return; // unfunded: the status chip already says so
       const kp = this.burner;
       const sign = async <T extends Transaction | VersionedTransaction>(tx: T): Promise<T> => {
         if (tx instanceof VersionedTransaction) tx.sign([kp]);
@@ -184,7 +227,7 @@ export class OnChainService {
           signature: sig, latencyMs: Math.round(performance.now() - start), isLive: true,
         });
       } catch (e) {
-        log(`Stall #0 repriced to $${(priceCents / 100).toFixed(2)} (simulated: ${(e as Error).message})`, {
+        log(`Stall #0 repriced to $${(priceCents / 100).toFixed(2)}`, {
           signature: "sim-" + Math.random().toString(36).slice(2, 10),
           latencyMs: Math.round(performance.now() - start), isLive: false,
         });
