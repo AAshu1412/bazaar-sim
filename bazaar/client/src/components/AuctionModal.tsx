@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Lock, ShieldCheck, Sparkles, Trophy, X, Package, Shield, Clock } from "lucide-react";
 import { useGameStore } from "../store/gameStore";
 import { sfx } from "../audio/sfx";
+import { InteriorBanner } from "./InteriorBanner";
+import { landmarkInterior } from "../engine/buildingRegistry";
 
 const GLYPHS = "0123456789ABCDEF$#@%&*ΞΨΩ§";
 
@@ -166,6 +168,8 @@ export const AuctionModal: React.FC = () => {
           >
             <X className="w-5 h-5" />
           </button>
+
+          <InteriorBanner src={landmarkInterior("town-hall")} alt="Auction hall interior" className="mb-4" />
 
           {/* Title & Badge */}
           <div className="flex items-center justify-between mb-4 pr-8">

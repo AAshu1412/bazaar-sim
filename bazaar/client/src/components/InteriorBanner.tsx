@@ -9,7 +9,7 @@ export const InteriorBanner: React.FC<{ src: string; alt: string; className?: st
       src={src}
       alt={alt}
       onError={() => setFailed(true)}
-      className={`w-full h-32 object-cover rounded-xl border border-[#d4a359]/30 shadow-inner ${className}`}
+      className={`w-full aspect-[2/1] object-cover rounded-xl border border-[#d4a359]/30 shadow-inner ${className}`}
       draggable={false}
     />
   );
