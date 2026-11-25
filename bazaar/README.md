@@ -20,7 +20,7 @@
 
 - **Ephemeral Rollup.** After setup the shop is delegated to a MagicBlock ER: pricing, restocking, upgrades, auctions and customer payments run there. Delegating escrows your GD in the treasury; **Settle** brings the shop back and pays it out. Disable with `VITE_ER=off`.
 
-Deploy notes: program ID is `GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb` (the earlier `394dL2jz…` deployment belongs to another upgrade authority). Build with `yarn build` (SBPF v0; v3 is not active on devnet/mainnet), then first deploy: `solana program deploy target/deploy/bazaar.so --program-id target/deploy/bazaar-keypair.json -u devnet`. Later upgrades: `solana program deploy target/deploy/bazaar.so --program-id GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb -u devnet` (run `solana program extend` first if the binary grew). After changing the program run `node client/scripts/gen-idl-spec.mjs`.
+Deploy notes: program ID is `GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb` (the earlier `394dL2jz…` deployment belongs to another upgrade authority). Build with `yarn build` (SBPF v0; v3 is not active on devnet/mainnet), then first deploy: `solana program deploy target/deploy/bazaar.so --program-id target/deploy/bazaar-keypair.json -u devnet`. Later upgrades: `solana program deploy target/deploy/bazaar.so --program-id GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb -u https://rpc.magicblock.app/devnet` (the public devnet RPC often answers 429; `devnet.magicblock.app` is the rollup and cannot deploy) (run `solana program extend` first if the binary grew). After changing the program run `node client/scripts/gen-idl-spec.mjs`.
 
 ---
 

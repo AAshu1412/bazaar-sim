@@ -1,9 +1,10 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 import { Buffer } from "buffer";
 
-// VITE_RPC_URL lets you point the game at a local validator for testing
+// Base-layer devnet through MagicBlock's RPC (the public api.devnet.solana.com rate-limits the game's polling).
+// VITE_RPC_URL points the game elsewhere, e.g. at a local validator for testing.
 export const DEVNET_RPC_URL: string =
-  (import.meta as any).env?.VITE_RPC_URL ?? "https://api.devnet.solana.com";
+  (import.meta as any).env?.VITE_RPC_URL ?? "https://rpc.magicblock.app/devnet";
 // VITE_ER_URL points the game at a local ephemeral validator (or another region) for testing
 export const ER_RPC_URL: string = (import.meta as any).env?.VITE_ER_URL ?? "https://devnet.magicblock.app";
 export const ER_ENABLED: boolean = (import.meta as any).env?.VITE_ER !== "off";
