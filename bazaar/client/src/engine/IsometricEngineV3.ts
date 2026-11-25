@@ -56,20 +56,20 @@ export interface CustomerNPC {
 }
 
 const FILLER_INNER = [
-{ gx: 6, gy: 3, file: "/assets/buildings/blacksmith-forge.png" },
-{ gx: 21, gy: 3, file: "/assets/buildings/weavers-workshop.png" },
-{ gx: 6, gy: 24, file: "/assets/buildings/potters-workshop.png" },
-{ gx: 21, gy: 24, file: "/assets/buildings/tannery.png" },
+{ gx: 6, gy: 3, file: "/assets/exterior/blacksmith-forge.png" },
+{ gx: 21, gy: 3, file: "/assets/exterior/weavers-workshop.png" },
+{ gx: 6, gy: 24, file: "/assets/exterior/potters-workshop.png" },
+{ gx: 21, gy: 24, file: "/assets/exterior/tannery.png" },
   ];
 const FILLER_OUTER = [
-  { gx: 3, gy: 3, file: "/assets/buildings/sacred-grove.png" },
-  { gx: 24, gy: 3, file: "/assets/buildings/mill-house.png" },
-  { gx: 3, gy: 24, file: "/assets/buildings/stable-horse-market.png" },
-  { gx: 24, gy: 24, file: "/assets/buildings/dairy-barn.png" },
-  { gx: 13, gy: 4, file: "/assets/buildings/farmhouse-cottage.png" },
-  { gx: 14, gy: 23, file: "/assets/buildings/apiary-beekeeper.png" },
-  { gx: 4, gy: 14, file: "/assets/buildings/shrine-chapel.png" },
-  { gx: 23, gy: 13, file: "/assets/buildings/merchants-house.png" },
+  { gx: 3, gy: 3, file: "/assets/exterior/sacred-grove.png" },
+  { gx: 24, gy: 3, file: "/assets/exterior/mill-house.png" },
+  { gx: 3, gy: 24, file: "/assets/exterior/stable-horse-market.png" },
+  { gx: 24, gy: 24, file: "/assets/exterior/dairy-barn.png" },
+  { gx: 13, gy: 4, file: "/assets/exterior/farmhouse-cottage.png" },
+  { gx: 14, gy: 23, file: "/assets/exterior/apiary-beekeeper.png" },
+  { gx: 4, gy: 14, file: "/assets/exterior/shrine-chapel.png" },
+  { gx: 23, gy: 13, file: "/assets/exterior/merchants-house.png" },
 ];
 
 export class IsometricEngineV3 {
@@ -373,7 +373,7 @@ export class IsometricEngineV3 {
       const bType = types[id % types.length];
       const isUpgraded = id === 0 || id % 4 === 0;
       const bConfig = BUILDING_SPRITES.businesses[bType as keyof typeof BUILDING_SPRITES.businesses] || BUILDING_SPRITES.businesses.CoffeeCart;
-      const spritePath = p.ownerType === "unclaimed" ? "/assets/buildings/carpenters-yard.png" : (isUpgraded ? bConfig.upgraded : bConfig.base);
+      const spritePath = p.ownerType === "unclaimed" ? "/assets/exterior/carpenters-yard.png" : (isUpgraded ? bConfig.upgraded : bConfig.base);
 
       // Verify entrance is walkable on the grid
       this.pathfinder.setTile(p.entrance.x, p.entrance.y, 2);
