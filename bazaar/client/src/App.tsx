@@ -252,7 +252,7 @@ export const App: React.FC = () => {
     if (!chainLive) return;
     const sync = () => {
       const c = gameChain.getState();
-      const patch = { inventory: Math.max(0, c.inventory - c.pendingSales), priceCents: c.priceCents, isUpgraded: c.upgrades > 0 };
+      const patch = { inventory: Math.max(0, c.inventory - c.pendingSales), priceCents: c.pendingPrice ?? c.priceCents, isUpgraded: c.upgrades > 0 };
       engineRef.current?.updatePlotData(0, patch);
       setSelectedPlot((sp) => (sp && sp.id === 0 && (sp.inventory !== patch.inventory || sp.priceCents !== patch.priceCents || sp.isUpgraded !== patch.isUpgraded) ? { ...sp, ...patch } : sp));
     };

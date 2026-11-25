@@ -37,11 +37,21 @@ export interface ChainState {
   gd: number; // whole GD
   inventory: number;
   priceCents: number;
+  /** price the player just chose but the chain has not confirmed yet (so the UI never snaps back) */
+  pendingPrice: number | null;
+  unitCostCents: number;
   upgrades: number;
   lifetimeRevenueGd: number;
   customersServed: number;
   pendingSales: number;
   detail?: string;
+}
+export interface AuctionOutcome {
+  won: boolean;
+  units: number;
+  bidGd: number;
+  rivalsGd: [number, number, number];
+  signature: string;
 }
 export interface TxLog { message: string; signature: string; latencyMs: number; isLive: boolean }
 type Log = (kind: "PRICE" | "TICK" | "AUCTION" | "VRF" | "SETTLE", r: TxLog) => void;
@@ -51,7 +61,7 @@ const u32 = (n: number) => { const b = Buffer.alloc(4); b.writeUInt32LE(n); retu
 const u16 = (n: number) => { const b = Buffer.alloc(2); b.writeUInt16LE(n); return b; };
 const i64 = (n: number | bigint) => { const b = Buffer.alloc(8); b.writeBigInt64LE(BigInt(n)); return b; };
 
-const EMPTY: ChainState = { phase: "disconnected", sessionSol: 0, gd: 0, inventory: 0, priceCents: 275, upgrades: 0, lifetimeRevenueGd: 0, customersServed: 0, pendingSales: 0 };
+const EMPTY: ChainState = { phase: "disconnected", sessionSol: 0, gd: 0, inventory: 0, priceCents: 275, pendingPrice: null, unitCostCents: 137, upgrades: 0, lifetimeRevenueGd: 0, customersServed: 0, pendingSales: 0 };
 
 export class GameChain {
   private conn: Connection = router.baseConn;
@@ -283,7 +293,7 @@ export class GameChain {
       o += d[o] === 1 ? 33 : 1; // Option<Pubkey> manager
       o += 8 + 24; // revenue_today, revenue_trailing_3d
       next.inventory = d.readUInt32LE(o); o += 4;
-      o += 2; // unit_cost_cents
+      next.unitCostCents = d.readUInt16LE(o); o += 2;
       next.lifetimeRevenueGd = Number(d.readBigUInt64LE(o)) / GD_UNIT;
     }
     if (ownAcc) next.customersServed = Number(ownAcc.data.readBigUInt64LE(8 + 32 + 32 + 1 + 8));
@@ -293,13 +303,18 @@ export class GameChain {
   // ---------- gameplay actions (all session-signed) ----------
   setPrice(priceCents: number) {
     if (!this.live) return;
+    this.set({ pendingPrice: priceCents });
     if (this.priceTimer) clearTimeout(this.priceTimer);
     this.priceTimer = setTimeout(() => this.enqueue(async () => {
+      const target = this.state.pendingPrice ?? priceCents;
       try {
-        await this.timed("PRICE", `Stall #0 repriced to $${(priceCents / 100).toFixed(2)} on-chain`, () =>
-          this.send([this.ix("set_business_price", u16(priceCents), this.common())], 100_000));
-        this.set({ priceCents });
-      } catch (e) { this.fail(e, "live"); }
+        await this.timed("PRICE", `Stall #0 repriced to $${(target / 100).toFixed(2)} on-chain`, () =>
+          this.send([this.ix("set_business_price", u16(target), this.common())], 100_000));
+        this.set({ priceCents: target, pendingPrice: this.state.pendingPrice === target ? null : this.state.pendingPrice });
+      } catch (e) {
+        this.set({ pendingPrice: null });
+        this.log("PRICE", { message: `Reprice failed: ${String((e as { message?: string })?.message ?? e).slice(0, 80)}`, signature: "sim-price", latencyMs: 0, isLive: false });
+      }
     }), 600);
   }
   restock(units: number) {
@@ -314,6 +329,36 @@ export class GameChain {
       await this.refresh();
     });
   }
+  /**
+   * Sealed-bid wholesale auction, refereed by the program. A winning bid is paid in GD and the stock is added
+   * to the shop on-chain; a losing bid costs nothing. Resolves with the on-chain result (rival bids included).
+   */
+  auctionBid(bidGd: number, units = 100): Promise<AuctionOutcome> {
+    return this.enqueue(async () => {
+      if (!this.live) throw new Error("Connect your wallet and start a session first");
+      const id = BigInt(Math.floor(Date.now() / 1000)) * 1000n + BigInt(Math.floor(Math.random() * 1000));
+      const auction = this.pda([Buffer.from("auction"), this.season.toBuffer(), u64(id)]);
+      const t0 = performance.now();
+      const signature = await this.send([this.ix("bid_auction", Buffer.concat([u64(id), u32(units), u64(Math.round(bidGd * GD_UNIT))]), { ...this.common(), auction })], 250_000);
+      const acc = await this.conn.getAccountInfo(auction, "confirmed");
+      if (!acc) throw new Error("auction result not found");
+      const d = acc.data; // disc8 season32 bidder32 auction_id8 units4 bid8 rivals24 won1 slot8
+      const out: AuctionOutcome = {
+        units: d.readUInt32LE(80),
+        bidGd: Number(d.readBigUInt64LE(84)) / GD_UNIT,
+        rivalsGd: [0, 1, 2].map((i) => Number(d.readBigUInt64LE(92 + i * 8)) / GD_UNIT) as [number, number, number],
+        won: d[116] === 1,
+        signature,
+      };
+      this.log("AUCTION", {
+        message: out.won ? `Auction won: paid ${out.bidGd} GD, +${out.units} units of stock` : `Auction lost: top rival bid ${Math.max(...out.rivalsGd)} GD (no GD spent)`,
+        signature, latencyMs: Math.round(performance.now() - t0), isLive: true,
+      });
+      await this.refresh();
+      return out;
+    });
+  }
+
   /** A simulated townsperson walked out of the shop: queue it; sales are paid on-chain in small batches. */
   recordSale() {
     if (!this.live) return;

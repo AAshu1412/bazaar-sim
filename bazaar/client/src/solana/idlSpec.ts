@@ -44,6 +44,65 @@ export const IX: Record<string, { disc: number[]; accounts: [string, boolean, bo
    ]
   ]
  },
+ "bid_auction": {
+  "disc": [
+   174,
+   254,
+   177,
+   29,
+   20,
+   29,
+   217,
+   156
+  ],
+  "accounts": [
+   [
+    "season",
+    false,
+    false
+   ],
+   [
+    "business",
+    true,
+    false
+   ],
+   [
+    "player_gd",
+    true,
+    false
+   ],
+   [
+    "treasury",
+    true,
+    false
+   ],
+   [
+    "auction",
+    true,
+    false
+   ],
+   [
+    "session_token",
+    false,
+    false
+   ],
+   [
+    "signer",
+    true,
+    true
+   ],
+   [
+    "token_program",
+    false,
+    false
+   ],
+   [
+    "system_program",
+    false,
+    false
+   ]
+  ]
+ },
  "buy_scout": {
   "disc": [
    187,

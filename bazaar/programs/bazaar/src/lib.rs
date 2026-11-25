@@ -83,6 +83,11 @@ pub mod bazaar {
         handle_restock(ctx, units)
     }
 
+    /// Sealed-bid wholesale auction; a winning bid is paid in GD and restocks the shop
+    pub fn bid_auction(ctx: Context<BidAuction>, auction_id: u64, units: u32, bid: u64) -> Result<()> {
+        handle_bid_auction(ctx, auction_id, units, bid)
+    }
+
     /// Town population buys from a shop (season authority / its session key only)
     pub fn serve_customers(ctx: Context<ServeCustomers>, count: u16) -> Result<()> {
         handle_serve_customers(ctx, count)

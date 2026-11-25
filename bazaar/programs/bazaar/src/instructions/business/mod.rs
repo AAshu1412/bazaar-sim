@@ -176,3 +176,68 @@ pub fn handle_serve_customers(ctx: Context<ServeCustomers>, count: u16) -> Resul
     p.gd_earned = p.gd_earned.saturating_add(total);
     Ok(())
 }
+
+#[derive(Accounts, Session)]
+#[instruction(auction_id: u64)]
+pub struct BidAuction<'info> {
+    #[account(seeds = [b"season", season.authority.as_ref(), season.id.to_le_bytes().as_ref()], bump)]
+    pub season: Account<'info, Season>,
+    #[account(mut, constraint = business.season_id == season.id @ BazaarError::InvalidPlot)]
+    pub business: Account<'info, Business>,
+    #[account(mut, seeds = [b"gd", season.key().as_ref(), business.owner.as_ref()], bump)]
+    pub player_gd: Account<'info, TokenAccount>,
+    #[account(mut, seeds = [b"treasury", season.key().as_ref()], bump)]
+    pub treasury: Account<'info, TokenAccount>,
+    #[account(
+        init,
+        payer = signer,
+        space = 8 + AuctionResult::INIT_SPACE,
+        seeds = [b"auction", season.key().as_ref(), auction_id.to_le_bytes().as_ref()],
+        bump
+    )]
+    pub auction: Account<'info, AuctionResult>,
+    #[session(signer = signer, authority = business.owner.key())]
+    pub session_token: Option<Account<'info, SessionToken>>,
+    #[account(mut)]
+    pub signer: Signer<'info>,
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+}
+
+/// Sealed-bid first-price auction for `units` of wholesale stock. Three rival bidders bid 60-119% of the
+/// stock's wholesale value, derived from the slot the transaction lands in (unknown when the bid is signed).
+/// Highest bid wins, ties go to the rivals. The winner pays their own bid in GD and the stock is added to the shop.
+#[session_auth_or(ctx.accounts.business.owner == ctx.accounts.signer.key(), BazaarError::Unauthorized)]
+pub fn handle_bid_auction(ctx: Context<BidAuction>, auction_id: u64, units: u32, bid: u64) -> Result<()> {
+    require!(units > 0 && bid > 0, BazaarError::InvalidAmount);
+    let slot = Clock::get()?.slot;
+    let fair = ctx.accounts.business.unit_cost_cents as u64 * units as u64; // raw GD wholesale value
+
+    let seed = u64::from_le_bytes(ctx.accounts.season.key().to_bytes()[0..8].try_into().unwrap());
+    let mut x = slot ^ auction_id.rotate_left(17) ^ seed ^ 0x9E37_79B9_7F4A_7C15;
+    let mut rivals = [0u64; 3];
+    for r in rivals.iter_mut() {
+        x ^= x << 13; x ^= x >> 7; x ^= x << 17; // xorshift64
+        *r = fair * (60 + x % 60) / 100;
+    }
+    let won = bid > *rivals.iter().max().unwrap();
+
+    if won {
+        let cap = if ctx.accounts.business.upgrades & STORAGE_UPGRADE_FLAG != 0 { MAX_INVENTORY * 2 } else { MAX_INVENTORY };
+        let stock = ctx.accounts.business.inventory.checked_add(units).ok_or(BazaarError::InvalidAmount)?;
+        require!(stock <= cap, BazaarError::InventoryFull);
+        gd::transfer(&ctx.accounts.token_program, &ctx.accounts.season, &ctx.accounts.player_gd, &ctx.accounts.treasury, bid)?;
+        ctx.accounts.business.inventory = stock;
+    }
+
+    let a = &mut ctx.accounts.auction;
+    a.season = ctx.accounts.season.key();
+    a.bidder = ctx.accounts.business.owner;
+    a.auction_id = auction_id;
+    a.units = units;
+    a.bid = bid;
+    a.rivals = rivals;
+    a.won = won;
+    a.slot = slot;
+    Ok(())
+}

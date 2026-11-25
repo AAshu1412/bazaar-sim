@@ -89,6 +89,7 @@ export class IsometricEngineV3 {
   private isNight: boolean = false;
   private nightFilter: PIXI.Graphics = new PIXI.Graphics();
   private haloPulseTimer: number = 0;
+  private destroyed = false;
 
   // Cardinal Gates on Walkable Roads
   public readonly GATES: Point[] = [
@@ -117,6 +118,7 @@ export class IsometricEngineV3 {
       autoDensity: true,
     });
 
+    if (this.destroyed) { app.destroy(true, { children: true }); return; } // unmounted while Pixi was starting
     this.app = app;
     containerEl.appendChild(app.canvas);
 
@@ -162,6 +164,7 @@ export class IsometricEngineV3 {
 
     // Load textures with scaleMode = 'nearest'
     await this.preloadTextures();
+    if (this.destroyed) { app.destroy(true, { children: true }); this.app = null; return; }
 
     // Build 28x28 terrain grid
     this.buildTerrain();
@@ -467,7 +470,7 @@ export class IsometricEngineV3 {
 
     // 4. Floating Overhead Pill (Ownership, Price & Stock)
     const pill = new PIXI.Container();
-    pill.y = -86;
+    pill.y = -70;
     plot.overheadPill = pill;
     this.buildOverheadPill(plot);
     container.addChild(pill);
@@ -520,6 +523,10 @@ export class IsometricEngineV3 {
       sign.fill({ color: 0x1c1815, alpha: 0.92 });
       sign.stroke({ width: 1.5, color: 0xd4a359, alpha: 0.8 });
       pill.addChild(sign);
+      const signTail = new PIXI.Graphics(); // points down at the building the tag belongs to
+      signTail.poly([-5, 10, 5, 10, 0, 17]);
+      signTail.fill({ color: 0xd4a359, alpha: 0.9 });
+      pill.addChild(signTail);
 
       const txt = new PIXI.Text({
         text: "📜 FOR LEASE",
@@ -554,6 +561,10 @@ export class IsometricEngineV3 {
       pillBg.stroke({ width: 1.5, color: 0x6366f1 });
     }
     pill.addChild(pillBg);
+    const tail = new PIXI.Graphics(); // points down at the building the tag belongs to
+    tail.poly([-5, h / 2 - 1, 5, h / 2 - 1, 0, h / 2 + 6]);
+    tail.fill({ color: plot.ownerType === "player" ? 0x10b981 : plot.ownerType === "rivalHuman" ? 0xef4444 : 0x6366f1, alpha: 0.95 });
+    pill.addChild(tail);
 
     // Label Text
     let label = `$${(plot.priceCents / 100).toFixed(2)}`;
@@ -930,6 +941,7 @@ export class IsometricEngineV3 {
   }
 
   public destroy() {
+    this.destroyed = true;
     window.removeEventListener("resize", this.handleResize);
     window.removeEventListener("keydown", this.handleKeyDown);
     this.app?.destroy(true, { children: true });

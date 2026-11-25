@@ -120,7 +120,7 @@ export const PlotInspector: React.FC<PlotInspectorProps> = ({
                 <div className="flex gap-2">
                   <button
                     onClick={() => run("restock", onRestock)}
-                    disabled={!!busy || chain.gd < 30}
+                    disabled={!!busy || chain.gd < 30 || chain.inventory + 20 > 200 * ((chain.upgrades & 2) ? 2 : 1)}
                     title="20 units x $1.50 wholesale, paid in GD"
                     className="flex-1 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 disabled:opacity-40 text-emerald-300 border border-emerald-500/40 rounded-xl font-bold font-sans text-xs transition-all"
                   >

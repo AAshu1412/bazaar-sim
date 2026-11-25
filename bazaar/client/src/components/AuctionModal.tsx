@@ -1,305 +1,200 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useSyncExternalStore } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Lock, ShieldCheck, Sparkles, Trophy, X, Package, Shield, Clock } from "lucide-react";
+import { Lock, ShieldCheck, Sparkles, Trophy, X, Package, Shield, Wallet } from "lucide-react";
 import { useGameStore } from "../store/gameStore";
+import { gameChain, type AuctionOutcome } from "../solana/gameChain";
 import { sfx } from "../audio/sfx";
 import { InteriorBanner } from "./InteriorBanner";
 import { landmarkInterior } from "../engine/buildingRegistry";
 
 const GLYPHS = "0123456789ABCDEF$#@%&*ΞΨΩ§";
+const blob = () => Array.from({ length: 6 }, () => GLYPHS[Math.floor(Math.random() * GLYPHS.length)]).join("");
+const LOT_UNITS = 100;
+const STOCK_CAP = 200;
 
-function getRandomGlyphBlob(): string {
-  let res = "";
-  for (let i = 0; i < 6; i++) {
-    res += GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
-  }
-  return res;
-}
-
+/**
+ * Wholesale auction, refereed by the program: three rival bids are derived on-chain, the highest bid wins,
+ * a winner pays their own bid in GD and the stock is added to the player's shop.
+ */
 export const AuctionModal: React.FC = () => {
-  const {
-    auctionActive,
-    auctionId,
-    auctionTargetInventory,
-    stalls,
-    localPlayerIndex,
-    submitAuctionBid,
-    addLedgerItem,
-  } = useGameStore();
+  const { auctionActive, stalls } = useGameStore();
+  const chain = useSyncExternalStore(gameChain.subscribe, gameChain.getState);
+  const live = chain.phase === "live";
 
-  const myStall = stalls[localPlayerIndex];
-  const [bidInput, setBidInput] = useState<number>(500);
-  const [phase, setPhase] = useState<"BIDDING" | "SEALED" | "REVEAL_CASCADE" | "WINNER_ANNOUNCED">("BIDDING");
-  const [timer, setTimer] = useState<number>(10);
-  const [scrambleBlobs, setScrambleBlobs] = useState<string[]>(["******", "******", "******", "******"]);
-  const [revealedBids, setRevealedBids] = useState<{ idx: number; amount: number }[]>([]);
-  const [winnerIdx, setWinnerIdx] = useState<number | null>(null);
+  const fairGd = (LOT_UNITS * chain.unitCostCents) / 100; // wholesale value of the lot
+  const [bidInput, setBidInput] = useState<number>(Math.round(fairGd * 0.95));
+  const [phase, setPhase] = useState<"BIDDING" | "SEALED" | "REVEAL" | "RESULT">("BIDDING");
+  const [scramble, setScramble] = useState<string[]>(["******", "******", "******", "******"]);
+  const [revealed, setRevealed] = useState<number>(0); // how many of the 4 tiles are uncovered
+  const [outcome, setOutcome] = useState<AuctionOutcome | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleClose = () => {
-    useGameStore.setState({ auctionActive: false });
-    sfx.playPriceClick();
+  const names = ["You", stalls[1]?.name ?? "Bot 1", stalls[2]?.name ?? "Bot 2", stalls[3]?.name ?? "Bot 3"];
+  const full = chain.inventory + LOT_UNITS > STOCK_CAP * (chain.upgrades & 2 ? 2 : 1);
+  const canBid = live && !full && bidInput >= 1 && bidInput <= chain.gd;
+
+  useEffect(() => {
+    if (!auctionActive) { setPhase("BIDDING"); setOutcome(null); setError(null); setRevealed(0); }
+  }, [auctionActive]);
+
+  // encrypted-looking glyphs while the bid is being sealed on-chain
+  useEffect(() => {
+    if (phase !== "SEALED") return;
+    const id = setInterval(() => { setScramble([blob(), blob(), blob(), blob()]); sfx.playGlitch(); }, 110);
+    return () => clearInterval(id);
+  }, [phase]);
+
+  const handleClose = () => { useGameStore.setState({ auctionActive: false }); sfx.playPriceClick(); };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canBid) return;
+    setError(null);
+    setPhase("SEALED");
+    try {
+      const result = await gameChain.auctionBid(bidInput, LOT_UNITS);
+      setOutcome(result);
+      setPhase("REVEAL");
+      for (let i = 1; i <= 4; i++) {
+        await new Promise((r) => setTimeout(r, 350));
+        sfx.playPriceClick();
+        setRevealed(i);
+      }
+      await new Promise((r) => setTimeout(r, 400));
+      setPhase("RESULT");
+      result.won ? sfx.playChing() : sfx.playGavel();
+    } catch (err) {
+      setError(String((err as { message?: string })?.message ?? err).slice(0, 140));
+      setPhase("BIDDING");
+    }
   };
 
-  // 10-second cinematic sequence
-  useEffect(() => {
-    if (!auctionActive) {
-      setPhase("BIDDING");
-      setTimer(10);
-      setRevealedBids([]);
-      setWinnerIdx(null);
-      return;
-    }
-
-    // Timer countdown 10s down to 0
-    const countdown = setInterval(() => {
-      setTimer((prev) => {
-        if (prev <= 1) {
-          clearInterval(countdown);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    // Rapid glyph scramble animation during sealed stage (0-8s)
-    const scrambler = setInterval(() => {
-      setScrambleBlobs([
-        getRandomGlyphBlob(),
-        getRandomGlyphBlob(),
-        getRandomGlyphBlob(),
-        getRandomGlyphBlob(),
-      ]);
-      sfx.playGlitch();
-    }, 110);
-
-    // Timeline transitions:
-    // 7.8s: Reveal cascade begins
-    const cascadeTimeout = setTimeout(() => {
-      clearInterval(scrambler);
-      setPhase("REVEAL_CASCADE");
-
-      const botBids = [
-        bidInput, // player
-        Math.floor(stalls[1].gdBalance * 0.12),
-        Math.floor(stalls[2].gdBalance * 0.18),
-        Math.floor(stalls[3].gdBalance * 0.28),
-      ];
-
-      botBids.forEach((bid, idx) => {
-        setTimeout(() => {
-          sfx.playPriceClick();
-          setRevealedBids((prev) => [...prev, { idx, amount: bid }]);
-        }, idx * 300);
-      });
-    }, 7800);
-
-    // 9.4s: Announce winner
-    const winnerTimeout = setTimeout(() => {
-      setPhase("WINNER_ANNOUNCED");
-      sfx.playGavel();
-
-      const botBids = [
-        bidInput,
-        Math.floor(stalls[1].gdBalance * 0.12),
-        Math.floor(stalls[2].gdBalance * 0.18),
-        Math.floor(stalls[3].gdBalance * 0.28),
-      ];
-      const maxBid = Math.max(...botBids);
-      const wIdx = botBids.indexOf(maxBid);
-      setWinnerIdx(wIdx);
-
-      addLedgerItem({
-        type: "AUCTION",
-        message: `Auction #${auctionId} won by ${stalls[wIdx].name} with ${maxBid} GD (+100 Stock)`,
-        signature: "5mX8p...tdxSealed",
-        latencyMs: 14,
-        network: "PER",
-      });
-    }, 9400);
-
-    return () => {
-      clearInterval(countdown);
-      clearInterval(scrambler);
-      clearTimeout(cascadeTimeout);
-      clearTimeout(winnerTimeout);
-    };
-  }, [auctionActive, bidInput, auctionId]);
+  const bidAgain = () => { setPhase("BIDDING"); setOutcome(null); setRevealed(0); setError(null); };
 
   if (!auctionActive) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    submitAuctionBid(bidInput);
-    setPhase("SEALED");
-    addLedgerItem({
-      type: "AUCTION",
-      message: `Encrypted bid of ${bidInput} GD submitted into TDX enclave`,
-      signature: "3vH9b...perEncrypted",
-      latencyMs: 18,
-      network: "PER",
-    });
-  };
+  const amounts = outcome ? [outcome.bidGd, ...outcome.rivalsGd] : [];
+  const topRival = outcome ? Math.max(...outcome.rivalsGd) : 0;
+  const winnerIdx = outcome ? (outcome.won ? 0 : 1 + outcome.rivalsGd.indexOf(topRival)) : null;
 
   return (
     <AnimatePresence>
-      <div 
+      <div
         className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 transition-all"
-        onClick={(e) => {
-          // Allow closing if clicked directly on background backdrop
-          if (e.target === e.currentTarget) handleClose();
-        }}
+        onClick={(e) => { if (e.target === e.currentTarget) handleClose(); }}
       >
         <motion.div
           initial={{ scale: 0.88, opacity: 0, y: 25 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.9, opacity: 0, y: 20 }}
           transition={{ type: "spring", stiffness: 300, damping: 28 }}
-          className="relative w-full max-w-lg bg-[#0e1424] border border-[#232f48] rounded-2xl p-6 shadow-2xl overflow-hidden"
+          className="relative w-full max-w-lg max-h-[92vh] overflow-y-auto bg-[#0e1424] border border-[#232f48] rounded-2xl p-6 shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Header Ambient Glow Banner */}
           <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-500 via-indigo-500 to-emerald-500 shadow-lg shadow-indigo-500/50" />
 
-          {/* Close Button in Top Right */}
-          <button
-            onClick={handleClose}
-            className="absolute top-4 right-4 p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800/60 transition-all active:scale-90 z-20"
-            title="Dismiss Auction Popup"
-          >
+          <button onClick={handleClose} className="absolute top-4 right-4 p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800/60 transition-all active:scale-90 z-20" title="Close">
             <X className="w-5 h-5" />
           </button>
 
           <InteriorBanner src={landmarkInterior("town-hall")} alt="Auction hall interior" className="mb-4" />
 
-          {/* Title & Badge */}
-          <div className="flex items-center justify-between mb-4 pr-8">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-indigo-500/20 text-indigo-400 rounded-xl border border-indigo-500/40 shadow-inner">
-                <Lock className="w-5 h-5 animate-pulse" />
-              </div>
-              <div>
-                <h3 className="font-black text-lg text-white flex items-center gap-2">
-                  Supply Shipment #{auctionId}
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-bold">
-                    TDX SEALED
-                  </span>
-                </h3>
-                <p className="text-xs text-indigo-300 font-mono flex items-center gap-1.5 mt-0.5">
-                  <Shield className="w-3.5 h-3.5 text-indigo-400" />
-                  Private Ephemeral Rollup • First-Price Auction
-                </p>
-              </div>
+          <div className="flex items-center gap-3 mb-4 pr-8">
+            <div className="p-2.5 bg-indigo-500/20 text-indigo-400 rounded-xl border border-indigo-500/40 shadow-inner">
+              <Lock className="w-5 h-5" />
             </div>
-
-            {/* Countdown timer badge */}
-            <div className="flex items-center gap-1.5 bg-[#141b2e] px-3 py-1.5 rounded-xl border border-bazaar-border shadow-inner">
-              <Clock className="w-3.5 h-3.5 text-amber-400 animate-spin" />
-              <span className="font-mono font-black text-amber-400 text-base">
-                {timer}s
-              </span>
+            <div>
+              <h3 className="font-black text-lg text-white flex items-center gap-2">
+                Wholesale Auction
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold">ON-CHAIN</span>
+              </h3>
+              <p className="text-xs text-indigo-300 font-mono flex items-center gap-1.5 mt-0.5">
+                <Shield className="w-3.5 h-3.5 text-indigo-400" />
+                Sealed first-price bid • win it and your shop restocks
+              </p>
             </div>
           </div>
 
-          {/* Cargo Details Card */}
-          <div className="mb-4 bg-[#141c2f] p-3.5 rounded-xl border border-bazaar-border text-xs text-gray-300 flex justify-between items-center shadow-sm">
-            <div className="flex items-center gap-2">
-              <Package className="w-4 h-4 text-amber-400" />
-              <span>Target Cargo: <b className="text-white">+{auctionTargetInventory} Units Coffee Beans</b></span>
+          <div className="mb-4 bg-[#141c2f] p-3.5 rounded-xl border border-bazaar-border text-xs text-gray-300 space-y-1.5 shadow-sm">
+            <div className="flex justify-between items-center">
+              <span className="flex items-center gap-2"><Package className="w-4 h-4 text-amber-400" /> Lot: <b className="text-white">+{LOT_UNITS} units of stock</b></span>
+              <span className="font-mono"><span className="text-gray-400">Balance: </span><b className="text-emerald-400">{live ? chain.gd.toLocaleString(undefined, { maximumFractionDigits: 2 }) : "—"} GD</b></span>
             </div>
-            <div className="font-mono">
-              <span className="text-gray-400">Balance: </span>
-              <b className="text-emerald-400 font-bold">{myStall.gdBalance} GD</b>
+            <div className="flex justify-between font-mono text-[11px] text-gray-400">
+              <span>Wholesale value (restock price): <b className="text-gray-200">{fairGd.toFixed(2)} GD</b></span>
+              <span>Your stock: <b className="text-gray-200">{live ? chain.inventory : "—"}</b> / {STOCK_CAP * (chain.upgrades & 2 ? 2 : 1)}</span>
             </div>
           </div>
 
-          {/* Bid Submission Stage (0 - 3s) */}
+          {!live && (
+            <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200">
+              <Wallet className="w-4 h-4 shrink-0" /> Connect your wallet and start a session to bid with real GD.
+            </div>
+          )}
+          {live && full && phase === "BIDDING" && (
+            <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-200">Your warehouse can't hold another {LOT_UNITS} units yet. Sell some stock first.</div>
+          )}
+          {error && <div className="mb-3 rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-300">{error}</div>}
+
           {phase === "BIDDING" && (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <div className="flex justify-between text-xs mb-1.5 font-medium text-gray-400">
-                  <span>Enter Secret Sealed Bid (GD):</span>
-                  <span className="text-indigo-400 font-mono">Min: 10 GD</span>
+                  <span>Your sealed bid (GD):</span>
+                  <span className="text-indigo-400 font-mono">Rivals bid 60–119% of {fairGd.toFixed(0)} GD</span>
                 </div>
                 <div className="relative">
                   <input
-                    type="number"
-                    min={10}
-                    max={myStall.gdBalance}
-                    value={bidInput}
+                    type="number" min={1} max={Math.max(1, Math.floor(chain.gd))} value={bidInput}
                     onChange={(e) => setBidInput(Number(e.target.value))}
                     className="w-full bg-[#080d19] border border-[#2a3858] rounded-xl px-4 py-3 font-mono font-black text-xl text-white focus:outline-none focus:border-indigo-500 transition-colors shadow-inner"
                   />
-                  <span className="absolute right-4 top-3.5 text-xs font-black text-gray-400 font-mono">
-                    GD
-                  </span>
+                  <span className="absolute right-4 top-3.5 text-xs font-black text-gray-400 font-mono">GD</span>
                 </div>
               </div>
-
-              {/* Quick Presets */}
               <div className="flex gap-2">
-                {[100, 250, 500, 1000].map((preset) => (
+                {[0.7, 0.9, 1.0, 1.15].map((k) => (
                   <button
-                    type="button"
-                    key={preset}
-                    onClick={() => {
-                      setBidInput(preset);
-                      sfx.playPriceClick();
-                    }}
+                    type="button" key={k}
+                    onClick={() => { setBidInput(Math.round(fairGd * k)); sfx.playPriceClick(); }}
                     className="flex-1 py-1.5 text-xs font-mono font-bold bg-[#141c2e] hover:bg-[#202c46] border border-bazaar-border/60 rounded-lg text-gray-300 transition-all active:scale-95"
                   >
-                    {preset} GD
+                    {Math.round(k * 100)}%
                   </button>
                 ))}
               </div>
-
               <button
-                type="submit"
-                className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-black text-sm rounded-xl transition-all shadow-lg shadow-indigo-600/40 flex items-center justify-center gap-2 active:scale-98"
+                type="submit" disabled={!canBid}
+                className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black text-sm rounded-xl transition-all shadow-lg shadow-indigo-600/40 flex items-center justify-center gap-2"
               >
                 <ShieldCheck className="w-4 h-4" />
-                Encrypt & Submit into Private ER
+                Place sealed bid on-chain
               </button>
             </form>
           )}
 
-          {/* Sealed / Scramble / Reveal Grid */}
           {phase !== "BIDDING" && (
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                {stalls.map((stall, idx) => {
-                  const revealed = revealedBids.find((r) => r.idx === idx);
-                  const isWinner = winnerIdx === idx;
-
+                {names.map((name, idx) => {
+                  const shown = revealed > idx && outcome;
+                  const isWinner = phase === "RESULT" && winnerIdx === idx;
                   return (
                     <motion.div
-                      key={idx}
-                      layout
-                      className={`p-3.5 rounded-xl border transition-all ${
-                        isWinner
-                          ? "bg-amber-500/20 border-amber-500 ring-2 ring-amber-500/50 shadow-lg shadow-amber-500/20"
-                          : "bg-[#0a0f1d] border-bazaar-border"
-                      }`}
+                      key={idx} layout
+                      className={`p-3.5 rounded-xl border transition-all ${isWinner ? "bg-amber-500/20 border-amber-500 ring-2 ring-amber-500/50 shadow-lg shadow-amber-500/20" : "bg-[#0a0f1d] border-bazaar-border"}`}
                     >
                       <div className="flex justify-between items-center mb-1">
-                        <span className="text-[11px] font-black text-gray-200 truncate">
-                          {stall.name}
-                        </span>
+                        <span className="text-[11px] font-black text-gray-200 truncate">{name}</span>
                         {isWinner && <Trophy className="w-4 h-4 text-amber-400 animate-bounce" />}
                       </div>
-
                       <div className="font-mono text-center py-2 text-base">
-                        {revealed ? (
-                          <motion.span
-                            initial={{ scale: 1.4, color: "#10B981" }}
-                            animate={{ scale: 1, color: isWinner ? "#F59E0B" : "#F3F4F6" }}
-                            className="font-black"
-                          >
-                            {revealed.amount} GD
+                        {shown ? (
+                          <motion.span initial={{ scale: 1.4, color: "#10B981" }} animate={{ scale: 1, color: isWinner ? "#F59E0B" : "#F3F4F6" }} className="font-black">
+                            {amounts[idx].toLocaleString(undefined, { maximumFractionDigits: 2 })} GD
                           </motion.span>
                         ) : (
-                          <span className="text-indigo-400 font-black tracking-widest animate-pulse font-mono text-sm">
-                            {scrambleBlobs[idx]}
-                          </span>
+                          <span className="text-indigo-400 font-black tracking-widest animate-pulse font-mono text-sm">{scramble[idx]}</span>
                         )}
                       </div>
                     </motion.div>
@@ -307,33 +202,36 @@ export const AuctionModal: React.FC = () => {
                 })}
               </div>
 
-              {/* Status Message */}
-              <div className="text-center py-2.5">
+              <div className="text-center py-2.5 text-xs">
                 {phase === "SEALED" && (
-                  <p className="text-xs text-indigo-300 flex items-center justify-center gap-1.5 font-medium">
-                    <Sparkles className="w-4 h-4 animate-spin text-indigo-400" />
-                    Bids TDX-sealed inside Private ER. Opponents cannot front-run or snipe!
+                  <p className="text-indigo-300 flex items-center justify-center gap-1.5 font-medium">
+                    <Sparkles className="w-4 h-4 animate-spin text-indigo-400" /> Sealing your bid on-chain…
                   </p>
                 )}
-                {phase === "REVEAL_CASCADE" && (
-                  <p className="text-xs text-emerald-400 font-black tracking-wide animate-pulse">
-                    Decrypting and resolving enclave sealed bids...
-                  </p>
-                )}
-                {phase === "WINNER_ANNOUNCED" && winnerIdx !== null && (
-                  <div className="text-xs font-black text-amber-400 flex items-center justify-center gap-1.5">
-                    🎉 <span>{stalls[winnerIdx].name} WON the auction! (+100 Stock)</span>
-                  </div>
+                {phase === "REVEAL" && <p className="text-emerald-400 font-black tracking-wide animate-pulse">Opening the sealed bids…</p>}
+                {phase === "RESULT" && outcome && (
+                  outcome.won ? (
+                    <div className="font-black text-amber-300 space-y-1">
+                      <div>🎉 You won! Paid {outcome.bidGd.toLocaleString(undefined, { maximumFractionDigits: 2 })} GD</div>
+                      <div className="text-emerald-300 font-bold">+{outcome.units} units added to your shop (stock now {chain.inventory})</div>
+                    </div>
+                  ) : (
+                    <div className="font-bold text-gray-300 space-y-1">
+                      <div>Outbid. The top rival bid {topRival.toLocaleString(undefined, { maximumFractionDigits: 2 })} GD.</div>
+                      <div className="text-gray-400 font-normal">No GD was spent.</div>
+                    </div>
+                  )
                 )}
               </div>
 
-              <div className="flex justify-end pt-1">
-                <button
-                  type="button"
-                  onClick={handleClose}
-                  className="px-4 py-1.5 bg-[#141b2e] hover:bg-gray-800 text-gray-300 text-xs font-bold rounded-lg border border-bazaar-border transition-all"
-                >
-                  Close Window
+              <div className="flex justify-end gap-2 pt-1">
+                {phase === "RESULT" && (
+                  <button type="button" onClick={bidAgain} className="px-4 py-1.5 bg-indigo-600/80 hover:bg-indigo-500 text-white text-xs font-bold rounded-lg transition-all">
+                    Bid in a new auction
+                  </button>
+                )}
+                <button type="button" onClick={handleClose} className="px-4 py-1.5 bg-[#141b2e] hover:bg-gray-800 text-gray-300 text-xs font-bold rounded-lg border border-bazaar-border transition-all">
+                  Close
                 </button>
               </div>
             </div>
