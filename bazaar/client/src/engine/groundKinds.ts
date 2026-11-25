@@ -51,5 +51,15 @@ export const GROUND_KINDS: Record<string, "stone" | "cobble" | "grass" | "dirt">
   "dairy-barn": "grass",
   "stable-horse-market": "dirt",
   "shrine-chapel": "stone",
-  "merchants-house": "cobble"
+  "merchants-house": "cobble",
+  "shop-coffee": "cobble",
+  "shop-coffee-plus": "cobble",
+  "shop-food": "stone",
+  "shop-food-plus": "stone",
+  "shop-tech": "stone",
+  "shop-tech-plus": "stone",
+  "shop-flower": "grass",
+  "shop-flower-plus": "grass",
+  "shop-book": "cobble",
+  "shop-book-plus": "stone"
 };

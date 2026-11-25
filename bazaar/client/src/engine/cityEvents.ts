@@ -14,6 +14,10 @@ export function parseCityEvent(logs: string[]): Omit<CityEvent, "signature"> | n
   return null;
 }
 
+export const EVENT_TITLES: Record<EventType, string> = {
+  Quiet: "", DemandSurge: "Market rush", DemandDrop: "Rainy spell", ViralStall: "Gone viral", SupplyShock: "Supply scare", FlashSale: "Bargain frenzy",
+};
+
 /** How an event bends the customer demand formula. */
 export function demandModifiers(event: EventType) {
   return {

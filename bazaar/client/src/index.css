@@ -3,46 +3,38 @@
 @tailwind utilities;
 
 @layer base {
-  body {
-    font-family: 'Inter', system-ui, sans-serif;
-    background-color: #0B0E14;
-    color: #F3F4F6;
-  }
+  body { font-family: Nunito, system-ui, sans-serif; background-color: #14231d; color: #f6ead0; }
+  :focus-visible { outline: 3px solid #4f9be8; outline-offset: 2px; }
+}
+
+@layer components {
+  .panel { @apply rounded-2xl border-[3px] border-ink bg-paper text-ink shadow-board; }
+  .panel-head { @apply flex items-center gap-3 rounded-t-[13px] border-b-[3px] border-ink bg-wood px-4 py-2.5 text-paper; }
+  .well { @apply rounded-xl border-2 border-ink/20 bg-parchment; }
+  .btn { @apply inline-flex h-10 select-none items-center justify-center gap-2 whitespace-nowrap rounded-xl border-2 border-ink bg-paper px-4 font-display text-sm font-semibold text-ink shadow-key transition-[transform,box-shadow,filter] duration-100 hover:brightness-105 active:translate-y-[3px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 disabled:active:translate-y-0 disabled:active:shadow-key; }
+  .btn-gold { @apply bg-gold; }
+  .btn-leaf { @apply bg-leaf text-paper; }
+  .btn-icon { @apply w-10 shrink-0 px-0; }
+  .soon { @apply rounded-md border border-ink/40 bg-ink/10 px-1.5 text-[11px] font-bold uppercase tracking-wide text-soft; }
 }
 
 /* Custom scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #121722;
-}
-::-webkit-scrollbar-thumb {
-  background: #232F48;
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #3B82F6;
-}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #b89a6a; border-radius: 4px; }
 
-/* Animations */
-@keyframes pulseGlow {
-  0%, 100% {
-    box-shadow: 0 0 15px rgba(245, 158, 11, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 25px rgba(245, 158, 11, 0.8);
-  }
-}
+/* wallet-adapter, restyled to match the HUD */
+.wallet-adapter-button { height: 40px !important; padding: 0 14px !important; font: 600 14px Fredoka, system-ui, sans-serif !important; border-radius: 12px !important; background: #ffc94a !important; border: 2px solid #2a1c15 !important; color: #2a1c15 !important; box-shadow: 0 3px 0 #2a1c15; }
+.wallet-adapter-button:not([disabled]):hover { background: #ffd56e !important; }
+.wallet-adapter-button-start-icon, .wallet-adapter-button-end-icon { width: 18px !important; height: 18px !important; margin-right: 6px !important; }
+.wallet-adapter-modal-wrapper { background: #f6ead0 !important; border: 3px solid #2a1c15; font-family: Nunito, system-ui, sans-serif !important; }
+.wallet-adapter-modal-title { color: #2a1c15 !important; font-family: Fredoka, system-ui, sans-serif !important; }
+.wallet-adapter-modal-list .wallet-adapter-button { background: #ecd9b0 !important; box-shadow: none; border-color: transparent !important; }
+.wallet-adapter-modal-list-more { color: #2a1c15 !important; }
+.wallet-adapter-modal-button-close { background: #ecd9b0 !important; }
+.wallet-adapter-dropdown-list { background: #6b3f26 !important; border: 2px solid #2a1c15; }
 
-.glow-gold {
-  animation: pulseGlow 2s infinite ease-in-out;
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  .drain-bar { display: none; }
 }
-
-/* wallet-adapter button, restyled to match the HUD */
-.wallet-adapter-button { height: 34px !important; padding: 0 12px !important; font-size: 12px !important; border-radius: 12px !important; background: #1e1b3a !important; border: 1px solid rgba(99,102,241,.5) !important; color: #c7d2fe !important; font-family: inherit !important; }
-.wallet-adapter-button:not([disabled]):hover { background: #2a2650 !important; }
-.wallet-adapter-button-start-icon, .wallet-adapter-button-end-icon { width: 16px !important; height: 16px !important; margin-right: 6px !important; }
-.wallet-adapter-modal-wrapper { background: #1c1815 !important; border: 1px solid rgba(212,163,89,.4); }
-.wallet-adapter-dropdown-list { background: #1c1815 !important; }

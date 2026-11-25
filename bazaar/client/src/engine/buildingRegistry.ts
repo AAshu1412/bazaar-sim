@@ -5,29 +5,29 @@ export const BUILDING_SPRITES = {
   // Playable Businesses: Base -> Upgraded
   businesses: {
     CoffeeCart: {
-      base: "/assets/exterior/spice-merchant.png",
-      upgraded: "/assets/exterior/brewery-distillery.png",
-      label: "Bazaar Brew House",
+      base: "/assets/exterior/shop-coffee.png",
+      upgraded: "/assets/exterior/shop-coffee-plus.png",
+      label: "Coffee",
     },
     StreetFood: {
-      base: "/assets/exterior/bakery.png",
-      upgraded: "/assets/exterior/tavern-inn.png",
-      label: "Artisan Bakery & Tavern",
+      base: "/assets/exterior/shop-food.png",
+      upgraded: "/assets/exterior/shop-food-plus.png",
+      label: "Street food",
     },
     Electronics: {
-      base: "/assets/exterior/clockmakers-workshop.png",
-      upgraded: "/assets/exterior/arcane-goods-shop.png",
-      label: "Clockwork & Arcane Tech",
+      base: "/assets/exterior/shop-tech.png",
+      upgraded: "/assets/exterior/shop-tech-plus.png",
+      label: "Electronics",
     },
     FlowerStall: {
-      base: "/assets/exterior/herbalist-apothecary.png",
-      upgraded: "/assets/exterior/alchemists-shop.png",
-      label: "Botanicals & Alchemy",
+      base: "/assets/exterior/shop-flower.png",
+      upgraded: "/assets/exterior/shop-flower-plus.png",
+      label: "Flowers",
     },
     Bookshop: {
-      base: "/assets/exterior/scribe-bookshop.png",
-      upgraded: "/assets/exterior/library-bookshop.png",
-      label: "Scribe & Grand Library",
+      base: "/assets/exterior/shop-book.png",
+      upgraded: "/assets/exterior/shop-book-plus.png",
+      label: "Books",
     },
     Vacant: {
       base: "/assets/exterior/vacant-lot.png",

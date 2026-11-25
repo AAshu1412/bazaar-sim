@@ -1,103 +1,68 @@
-import React, { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import {
-  Volume2,
-  VolumeX,
-  Building2,
-  Eye,
-  TrendingUp,
-  Sparkles,
-  Bot,
-  Play,
-  Briefcase,
-  Crosshair,
-  ZoomIn,
-  ZoomOut,
-  RotateCcw,
-  Sliders,
-  DollarSign,
-  HelpCircle,
-  Landmark,
-  Shield,
-  Layers,
-  BarChart3,
-  Globe2,
-  Users,
-} from "lucide-react";
-import { IsometricEngineV3, PlotInfo } from "./engine/IsometricEngineV3";
-import { EventBanner } from "./components/EventBanner";
+import { Volume2, VolumeX, ZoomIn, ZoomOut, Maximize } from "lucide-react";
+import { IsometricEngineV3 } from "./engine/IsometricEngineV3";
 import { demandModifiers } from "./engine/cityEvents";
+import { PLACES, price, type PlaceId } from "./engine/shopKinds";
+import { EventBanner } from "./components/EventBanner";
 import { AuctionModal } from "./components/AuctionModal";
 import { CityLedger } from "./components/CityLedger";
-import { ResultsModal } from "./components/ResultsModal";
-import { BankModal } from "./components/BankModal";
-import { IntelModal } from "./components/IntelModal";
-import { UncleRaviOverlay } from "./components/UncleRaviOverlay";
-import { DemoDirectorToolbar } from "./components/DemoDirectorToolbar";
-import { PlotInspector } from "./components/PlotInspector";
-import { GuidedTour } from "./components/GuidedTour";
-import { MultiplayerLobbyModal } from "./components/MultiplayerLobbyModal";
-import { StatusBoardModal } from "./components/StatusBoardModal";
+import { PlotInspector, RESTOCK_UNITS } from "./components/PlotInspector";
+import { TownBoard } from "./components/TownBoard";
+import { Guide } from "./components/Guide";
+import { Badge } from "./components/ui";
+import { WalletChip } from "./components/WalletChip";
 import { useGameStore } from "./store/gameStore";
 import { sfx } from "./audio/sfx";
 import { gameChain, type TxLog } from "./solana/gameChain";
 import { fetchSolPrice } from "./solana/pyth";
-import { WalletChip } from "./components/WalletChip";
+
+const GUIDE_SEEN = "bazaar_seen_guide_v3";
+const PRACTICE_UNIT_COST = 1.37; // GD per unit, matches the on-chain wholesale price
 
 export const App: React.FC = () => {
-  const {
-    stalls,
-    localPlayerIndex,
-    remainingSeconds,
-    soundEnabled,
-    toggleSound,
-    addLedgerItem,
-  } = useGameStore();
-
+  const { soundEnabled, toggleSound, addLedgerItem } = useGameStore();
   const containerRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<IsometricEngineV3 | null>(null);
 
-  // v2 Tycoon State
-  const [day, setDay] = useState<number>(1);
-  const [reputation, setReputation] = useState<number>(45);
-  const [netWorthGd, setNetWorthGd] = useState<number>(18450);
-  const [cashGd, setCashGd] = useState<number>(10000);
-  const [customersServedToday, setCustomersServedToday] = useState<number>(0);
-  const [revenueTodayCents, setRevenueTodayCents] = useState<number>(0);
+  // practice mode (no wallet): coins live only in this tab
+  const [practiceGd, setPracticeGd] = useState(10_000);
+  const [solPrice, setSolPrice] = useState<number | null>(null);
+  const [solChange, setSolChange] = useState(0);
 
-  // Modals & Panels
-  const [isBankOpen, setIsBankOpen] = useState<boolean>(false);
-  const [isIntelOpen, setIsIntelOpen] = useState<boolean>(false);
-  const [isDirectorOpen, setIsDirectorOpen] = useState<boolean>(false);
-  const [isNight, setIsNight] = useState<boolean>(false);
-  const [solPumpChange, setSolPumpChange] = useState<number>(0); // Director demo override
-  const [solPrice, setSolPrice] = useState<number | null>(null); // live Pyth SOL/USD
-  const [solLiveChange, setSolLiveChange] = useState<number>(0);
-  const [uncleRaviStage, setUncleRaviStage] = useState<number>(0);
-  const [showUncleRavi, setShowUncleRavi] = useState<boolean>(false);
-  const [showGuidedTour, setShowGuidedTour] = useState<boolean>(false);
-  const [showMultiplayerLobby, setShowMultiplayerLobby] = useState<boolean>(false);
-  const [showStatusBoard, setShowStatusBoard] = useState<boolean>(false);
+  const [selected, setSelected] = useState<number | null>(null);
+  const [boardOpen, setBoardOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(() => !localStorage.getItem(GUIDE_SEEN));
   const [toast, setToast] = useState<string | null>(null);
-  // demo tools are hidden unless the URL has ?demo (keeps them out of recordings)
-  const SHOW_DEMO = new URLSearchParams(window.location.search).has("demo");
-  const soon = (what: string) => {
-    sfx.playPriceClick();
-    setToast(`${what} is coming soon`);
-    setTimeout(() => setToast(null), 2200);
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+  const [, setTick] = useState(0); // the map owns shop data; re-read it twice a second
+
+  const say = (message: string) => {
+    setToast(message);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 2600);
   };
-  const [selectedPlot, setSelectedPlot] = useState<PlotInfo | null>(null);
 
-  // Auto-launch Guided Tour on First Visit
-  useEffect(() => {
-    const hasSeenTour = localStorage.getItem("bazaar_seen_tour_v2");
-    if (!hasSeenTour) {
-      setShowGuidedTour(true);
-      localStorage.setItem("bazaar_seen_tour_v2", "true");
-    }
-  }, []);
+  const closeInspector = () => { setSelected(null); engineRef.current?.select(null); };
+  const openShop = (id: number) => {
+    setBoardOpen(false);
+    setSelected(id);
+    engineRef.current?.select(id);
+    engineRef.current?.focusPlot(id, true);
+  };
+  const openPlace = (id: PlaceId) => {
+    const place = PLACES.find((p) => p.id === id)!;
+    if (place.soon) return say(`${place.name}: coming soon`);
+    setBoardOpen(false);
+    closeInspector();
+    if (id === "auction") useGameStore.setState({ auctionActive: true });
+    else setGuideOpen(true);
+  };
+  const closeGuide = useCallback(() => { localStorage.setItem(GUIDE_SEEN, "1"); setGuideOpen(false); }, []);
+  // engine callbacks are registered once, so they go through a ref to see fresh state
+  const handlers = useRef({ openShop, openPlace, closeInspector });
+  handlers.current = { openShop, openPlace, closeInspector };
 
-  // Mount 28x28 IsometricEngineV3 Canvas
   useEffect(() => {
     if (!containerRef.current) return;
     const engine = new IsometricEngineV3();
@@ -105,139 +70,33 @@ export const App: React.FC = () => {
     engineRef.current = engine;
     if (import.meta.env.DEV) (window as unknown as { __engine: IsometricEngineV3 }).__engine = engine; // debugging handle
 
-    // Connect Plot Click to slide-over inspector
-    engine.onPlotClick = (plot: PlotInfo) => {
-      setSelectedPlot(plot);
-      sfx.playPriceClick();
+    engine.onPlotClick = (plot) => handlers.current.openShop(plot.id);
+    engine.onLandmarkClick = (id) => handlers.current.openPlace(id as PlaceId);
+    engine.onEmptyClick = () => handlers.current.closeInspector();
+    engine.onCustomerServed = (plotId, priceCents) => {
+      if (plotId !== 0) return;
+      if (gameChain.live) gameChain.recordSale(); // paid on-chain from the town treasury in small batches
+      else setPracticeGd((gd) => gd + priceCents / 100);
     };
-
-    // Connect Landmark Click to corresponding modal
-    engine.onLandmarkClick = (modal: string) => {
-      sfx.playPriceClick();
-      if (modal === "auction") useGameStore.setState({ auctionActive: true });
-      else if (modal === "uncleRavi") setShowUncleRavi(true);
-      else if (modal === "bank") soon("The bank");
-      else if (modal === "intel") soon("The Intel Guild");
-      else if (modal === "manager") soon("The Manager Office");
-      else if (modal === "spectator") soon("The Spectator Hall");
-    };
-
-    // Customer served callback for real P&L updates
-    engine.onCustomerServed = (plotId: number, priceCents: number) => {
-      if (plotId === 0) {
-        setCustomersServedToday((prev) => prev + 1);
-        setRevenueTodayCents((prev) => prev + priceCents);
-        if (gameChain.live) {
-          gameChain.recordSale(); // paid on-chain from the town treasury in small batches
-        } else {
-          setCashGd((prev) => prev + Math.round(priceCents / 100));
-          setNetWorthGd((prev) => prev + Math.round(priceCents / 100));
-          addLedgerItem({
-            type: "TICK",
-            message: `Customer served at Corner Roast: +$${(priceCents / 100).toFixed(2)} [simulated: connect a wallet to play on-chain]`,
-            signature: "sim-sale",
-            latencyMs: 18,
-            network: "ER",
-          });
-        }
-      }
-    };
-
-    return () => {
-      engine.destroy();
-    };
+    return () => engine.destroy();
   }, []);
 
-  // Guaranteed Continuous NPC customer generator (1.1s ticks)
+  // townspeople arrive every 1.1 s (city events change the rate)
   useEffect(() => {
-    let owed = 0; // fractional customers carried between ticks (city events change the rate)
+    let owed = 0;
     const spawner = setInterval(() => {
-      if (!engineRef.current) return;
-      for (owed += demandModifiers(useGameStore.getState().activeEvent).customersPerTick; owed >= 1; owed--) {
-        engineRef.current.spawnCustomer();
-      }
+      for (owed += demandModifiers(useGameStore.getState().activeEvent).customersPerTick; owed >= 1; owed--) engineRef.current?.spawnCustomer();
     }, 1100);
-
-    return () => clearInterval(spawner);
+    const redraw = setInterval(() => setTick((t) => t + 1), 500);
+    return () => { clearInterval(spawner); clearInterval(redraw); };
   }, []);
 
-  // Day countdown timer
+  useEffect(() => { sfx.enabled = soundEnabled; }, [soundEnabled]);
   useEffect(() => {
-    const timer = setInterval(() => {
-      useGameStore.setState((prev) => {
-        if (prev.remainingSeconds <= 1) {
-          return { remainingSeconds: 300, tick: prev.tick + 1 };
-        }
-        return { remainingSeconds: prev.remainingSeconds - 1, tick: prev.tick + 1 };
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && handlers.current.closeInspector();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
-
-  // Camera Controls
-  const handleZoomIn = () => engineRef.current?.zoomIn();
-  const handleZoomOut = () => engineRef.current?.zoomOut();
-  const handleResetCamera = () => engineRef.current?.resetCamera();
-  const handleFocusPlayerPlot = () => engineRef.current?.focusPlayerPlot();
-
-  // Demo Director Handlers
-  const handleToggleNight = () => {
-    const newNight = !isNight;
-    setIsNight(newNight);
-    engineRef.current?.setNightMode(newNight);
-    addLedgerItem({
-      type: "TICK",
-      message: newNight
-        ? "🌙 Overnight phase active: Autonomous Managers trading on 10s ticks"
-        : "☀️ Daylight: Market hours active on 1s ticks",
-      signature: "3mP9...crankPhase",
-      latencyMs: 25,
-      network: "ER",
-    });
-    sfx.playPriceClick();
-  };
-
-  const handleSimulateSolPump = () => {
-    const newPump = solPumpChange === 0 ? 5.2 : 0;
-    setSolPumpChange(newPump);
-    if (newPump > 0) {
-      addLedgerItem({
-        type: "VRF",
-        message: "Pyth Lazer feed: SOL +5.2% 1h pump → Electronics demand scaled +26%",
-        signature: "8qW2...pythFeed",
-        latencyMs: 12,
-        network: "ER",
-      });
-      sfx.playVrfAlert();
-    }
-  };
-
-  const handleTriggerMarginCall = () => {
-    addLedgerItem({
-      type: "AUCTION",
-      message: "⚠️ Margin call triggered on Rival #2 (LTV 85%). Dutch Auction liquidation pending.",
-      signature: "9xZ4...marginCall",
-      latencyMs: 19,
-      network: "ER",
-    });
-    sfx.playGavel();
-  };
-
-  const handleFastForwardDay = () => {
-    setDay((prev) => Math.min(7, prev + 1));
-    setReputation((prev) => Math.min(100, prev + 15));
-    setCashGd((prev) => prev + 2400);
-    setNetWorthGd((prev) => prev + 3500);
-    addLedgerItem({
-      type: "TICK",
-      message: `Day ${day + 1} Opening Bell: Rent collected, plot auctions initialized on Private ER`,
-      signature: "2vB8...openDayCrank",
-      latencyMs: 38,
-      network: "PER",
-    });
-    sfx.playChing();
-  };
 
   const logChain = (type: "PRICE" | "TICK" | "AUCTION" | "VRF" | "SETTLE", r: TxLog) =>
     addLedgerItem({ type, message: r.message, signature: r.signature, latencyMs: r.latencyMs, network: r.er ? "ER" : "Base" });
@@ -255,26 +114,22 @@ export const App: React.FC = () => {
     }
   }, [connected, walletKey]);
   const chain = useSyncExternalStore(gameChain.subscribe, gameChain.getState);
-  const chainLive = chain.phase === "live";
-  const displayCash = chainLive ? chain.gd : cashGd;
-  const displayNetWorth = chainLive ? Math.round(chain.gd + 5000 + chain.inventory * 1.5) : netWorthGd;
+  const live = chain.phase === "live";
 
   // mirror on-chain stock and price into the map (sold out on-chain = sold out in town)
   useEffect(() => {
-    if (!chainLive) return;
+    if (!live) return;
     const sync = () => {
       const c = gameChain.getState();
-      const patch = { inventory: Math.max(0, c.inventory - c.pendingSales), priceCents: c.pendingPrice ?? c.priceCents, isUpgraded: c.upgrades > 0 };
-      engineRef.current?.updatePlotData(0, patch);
+      engineRef.current?.updatePlotData(0, { inventory: Math.max(0, c.inventory - c.pendingSales), priceCents: c.pendingPrice ?? c.priceCents, isUpgraded: c.upgrades > 0 });
       const activeEvent = c.cityEvent?.name ?? "Quiet", eventTarget = c.cityEvent?.target ?? 0;
       const g = useGameStore.getState();
       if (g.activeEvent !== activeEvent || g.eventTarget !== eventTarget) useGameStore.setState({ activeEvent, eventTarget });
-      setSelectedPlot((sp) => (sp && sp.id === 0 && (sp.inventory !== patch.inventory || sp.priceCents !== patch.priceCents || sp.isUpgraded !== patch.isUpgraded) ? { ...sp, ...patch } : sp));
     };
     sync();
-    const id = setInterval(sync, 1500); // also covers the engine finishing its async load after the first chain update
+    const id = setInterval(sync, 700); // also covers the engine finishing its async load after the first chain update
     return () => { clearInterval(id); useGameStore.setState({ activeEvent: "Quiet", eventTarget: 0 }); };
-  }, [chainLive]);
+  }, [live]);
 
   // Live Pyth SOL/USD every 15s; push the signal on-chain every 5 min
   useEffect(() => {
@@ -283,7 +138,7 @@ export const App: React.FC = () => {
       try {
         const p = await fetchSolPrice();
         setSolPrice(p.price);
-        setSolLiveChange(Number(p.change1hPct.toFixed(2)));
+        setSolChange(Number(p.change1hPct.toFixed(2)));
         if (gameChain.live && Date.now() - lastCrank > 300_000) {
           lastCrank = Date.now();
           gameChain.crankSignals();
@@ -297,377 +152,131 @@ export const App: React.FC = () => {
     return () => clearInterval(id);
   }, []);
 
-  // Reprice Plot: optimistic UI, debounced real set_business_price on devnet
-  const handleRepricePlot = (plotId: number, newPriceCents: number) => {
-    if (engineRef.current) {
-      engineRef.current.updatePlotData(plotId, { priceCents: newPriceCents });
-      if (selectedPlot && selectedPlot.id === plotId) {
-        setSelectedPlot({ ...selectedPlot, priceCents: newPriceCents });
-      }
-    }
-    if (plotId === 0) gameChain.setPrice(newPriceCents);
-    sfx.playPriceClick();
-  };
+  const shops = (engineRef.current?.plots ?? []).filter((p) => p.ownerType !== "unclaimed");
+  const mine = shops.find((p) => p.id === 0);
+  const plot = selected === null ? null : engineRef.current?.plots.find((p) => p.id === selected) ?? null;
+  const rivals = shops.filter((p) => p.id !== selected && p.id !== 0 && p.inventory > 0).sort((a, b) => a.priceCents - b.priceCents);
+  const gd = live ? chain.gd : practiceGd;
+  const stockCap = live ? 200 * (chain.upgrades & 2 ? 2 : 1) : mine?.maxInventory ?? 100;
+  const restockCost = Math.round((live ? chain.unitCostCents / 100 : PRACTICE_UNIT_COST) * RESTOCK_UNITS * 100) / 100;
 
-  // Stalls Leaderboard for Status Board
-  const stallsLeaderboard = (engineRef.current?.plots || [])
-    .filter((p) => p.ownerType !== "unclaimed")
-    .map((p) => ({
-      name: p.streetName + " Stall",
-      owner: p.owner || "Merchant",
-      priceCents: p.priceCents,
-      inventory: p.inventory,
-      customersServed: p.customersServed,
-      revenueCents: p.revenueTodayCents,
-      isPlayer: p.ownerType === "player",
-    }))
-    .sort((a, b) => b.revenueCents - a.revenueCents);
+  const reprice = (cents: number) => {
+    engineRef.current?.updatePlotData(0, { priceCents: cents });
+    gameChain.setPrice(cents); // no-op until a session is live
+    sfx.playPriceClick();
+    setTick((t) => t + 1);
+  };
+  const failed = (what: string) => (e: unknown) => say(`${what} failed: ${String((e as { message?: string })?.message ?? e).slice(0, 90)}`);
+  const restock = () => {
+    if (live) return gameChain.restock(RESTOCK_UNITS).catch(failed("Restock"));
+    if (!mine) return;
+    setPracticeGd((g) => g - restockCost);
+    engineRef.current?.updatePlotData(0, { inventory: mine.inventory + RESTOCK_UNITS });
+  };
+  const upgrade = () => gameChain.buyUpgrade(1, "Signage (+15% traffic)").catch(failed("Signage"));
+
+  const stats = [
+    { icon: "coin", name: live ? "Your GD" : "Practice GD", value: gd.toLocaleString(undefined, { maximumFractionDigits: 2 }) },
+    { icon: "crate", name: "Stock", value: mine ? (mine.inventory === 0 ? "Out!" : String(mine.inventory)) : "…", warn: mine?.inventory === 0 },
+    { icon: "tag", name: "Your price", value: mine ? price(mine.priceCents) : "…" },
+  ];
+  const dock = [
+    { icon: "coffee", name: "My shop", onClick: () => openShop(0) },
+    { icon: "pin", name: "Town", onClick: () => { closeInspector(); setBoardOpen(true); } },
+    { icon: "gavel", name: "Auction", onClick: () => openPlace("auction") },
+    { icon: "help", name: "Guide", onClick: () => setGuideOpen(true) },
+  ];
+  const steps = [
+    { title: "This is your coffee shop", body: "You own the corner plot marked YOUR SHOP. Townspeople walk in from the gates and buy from whichever shop is the best deal.", action: { label: "Show me", run: () => openShop(0) } },
+    { title: "Price it to win", body: "Cheaper shops, corner plots and signage draw more shoppers. Open your shop and nudge the price, then watch where people walk.", action: { label: "Open price", run: () => openShop(0) } },
+    { title: "Play for real on devnet", body: "Select Wallet (top right), then Start session. That is the only approval: every move after it is signed for you." },
+    { title: "Never run dry", body: "Restock from your shop, or bid for a bigger lot at the Town Hall auction. The Town button lists every shop and building.", action: { label: "Town board", run: () => setBoardOpen(true) } },
+  ];
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-[#090d16] text-[#f7f0e3] select-none font-sans">
-      {/* 2.5D Isometric Diorama Fullscreen Canvas */}
-      <div
-        ref={containerRef}
-        className="fixed inset-0 w-full h-full z-0 cursor-grab active:cursor-grabbing"
-      />
+    <div className="relative h-screen w-screen select-none overflow-hidden font-sans">
+      <div ref={containerRef} className="fixed inset-0 z-0 cursor-grab active:cursor-grabbing" />
 
-      {/* TOP FLOATING BAR: Gilded Merchant Guild Header */}
-      <header className="fixed top-3 left-4 right-4 z-30 pointer-events-none flex items-center justify-between gap-3 [&_*]:whitespace-nowrap">
-        {/* Left Badge: Title & Season Day */}
-        <div className="pointer-events-auto flex items-center gap-3 bg-[#1c1815]/92 border border-[#d4a359]/35 px-4 py-2.5 rounded-2xl shadow-2xl backdrop-blur-md">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl filter drop-shadow">🏛️</span>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <h1 className="font-serif font-black text-base tracking-wider text-amber-300 uppercase leading-none">
-                  Bazaar v2
-                </h1>
-                <span className="hidden 2xl:inline text-[9px] px-2 py-0.5 rounded-full bg-[#d4a359]/20 text-[#d4a359] border border-[#d4a359]/40 font-mono font-bold">
-                  8 PRIMITIVES
-                </span>
+      <header className="pointer-events-none fixed inset-x-4 top-3 z-30 flex flex-wrap items-start justify-between gap-3">
+        <div className="panel pointer-events-auto flex items-center gap-2 !bg-wood py-1.5 pl-2 pr-4 !text-paper">
+          <Badge icon="coffee" size={40} />
+          <div>
+            <h1 className="font-display text-xl font-bold leading-none tracking-wide">Bazaar</h1>
+            <p className="text-xs font-bold text-paper/80">{live ? (chain.erMode ? "Live · Ephemeral Rollup" : "Live · Solana devnet") : "Practice mode"}</p>
+          </div>
+        </div>
+
+        <dl className="panel pointer-events-auto flex divide-x-2 divide-ink/15 px-1 py-1.5">
+          {stats.map((st) => (
+            <div key={st.name} className="flex items-center gap-2 px-3">
+              <Badge icon={st.icon} size={32} className="hidden sm:block" />
+              <div>
+                <dt className="whitespace-nowrap text-[11px] font-extrabold uppercase tracking-wide text-soft">{st.name}</dt>
+                <dd className={`min-w-[3.5rem] whitespace-nowrap font-display text-lg font-semibold leading-tight tabular-nums ${st.warn ? "text-berry" : ""}`}>{st.value}</dd>
               </div>
-              <span className="text-[10px] text-gray-400 font-mono tracking-wider">
-                Grand District • Day {day}/7
-              </span>
             </div>
+          ))}
+        </dl>
+
+        <div className="pointer-events-auto flex items-center gap-2">
+          <div className="btn hidden cursor-default tabular-nums xl:flex" title="Live SOL/USD from Pyth, with the change over the last hour">
+            SOL {solPrice === null ? "…" : `$${solPrice.toFixed(2)}`}
+            {solChange !== 0 && <span className={solChange > 0 ? "text-leaf" : "text-berry"}>{solChange > 0 ? "▲" : "▼"} {Math.abs(solChange)}%</span>}
           </div>
-
-          <div className="h-6 w-[1px] bg-[#d4a359]/20 mx-1" />
-
-          {/* Day / Night Phase Indicator */}
-          <div className="flex items-center gap-2 text-xs font-mono">
-            <span
-              className={`w-2 h-2 rounded-full ${
-                isNight ? "bg-indigo-400 animate-pulse" : "bg-emerald-400"
-              }`}
-            />
-            <span className="hidden 2xl:inline text-gray-300 font-bold" title={isNight ? "Overnight (10s ticks)" : "Market hours (1s ticks)"}>
-              {isNight ? "Overnight (10s)" : "Market Hours (1s)"}
-            </span>
-            <span className="text-amber-400 font-bold bg-[#120f0d] px-2 py-0.5 rounded border border-[#d4a359]/20">
-              {Math.floor(remainingSeconds / 60)}:
-              {(remainingSeconds % 60).toString().padStart(2, "0")}
-            </span>
-          </div>
-        </div>
-
-        {/* Center Badge: Season Net Worth & Cash */}
-        <div className="pointer-events-auto flex items-center gap-4 bg-[#1c1815]/92 border border-[#d4a359]/35 px-4 py-2 rounded-2xl shadow-2xl backdrop-blur-md">
-          <div className="flex items-center gap-2">
-            <Briefcase className="w-4 h-4 text-amber-400" />
-            <div>
-              <span className="text-[10px] text-gray-400 block font-sans">Net Worth</span>
-              <span className="font-mono font-black text-sm text-white">
-                {displayNetWorth.toLocaleString()} <span className="text-[10px] text-amber-400">GD</span>
-              </span>
-            </div>
-          </div>
-
-          <div className="h-6 w-[1px] bg-[#d4a359]/20" />
-
-          <div className="flex items-center gap-2">
-            <DollarSign className="w-4 h-4 text-emerald-400" />
-            <div>
-              <span className="text-[10px] text-gray-400 block font-sans">Cash Reserve</span>
-              <span className="font-mono font-black text-sm text-emerald-400">
-                {displayCash.toLocaleString(undefined, { maximumFractionDigits: 2 })} <span className="text-[10px]">GD</span>
-              </span>
-            </div>
-          </div>
-
-        </div>
-
-        {/* Right Badge: Pyth Lazer Feed & Controls */}
-        <div className="pointer-events-auto flex items-center gap-2.5 bg-[#1c1815]/92 border border-[#d4a359]/35 p-1.5 rounded-2xl shadow-2xl backdrop-blur-md">
-          <div className="flex items-center gap-2 px-3 py-1 bg-[#120f0d] border border-[#d4a359]/20 rounded-xl text-xs font-mono">
-            <span className="text-gray-400"><span className="hidden 2xl:inline">Pyth </span>SOL:</span>
-            {(() => {
-              const change = solPumpChange > 0 ? solPumpChange : solLiveChange;
-              return (
-                <>
-                  <span className={`font-bold ${change > 0 ? "text-emerald-400" : change < 0 ? "text-red-400" : "text-gray-200"} ${solPumpChange > 0 ? "animate-pulse" : ""}`}>
-                    {solPrice === null ? "…" : `$${solPrice.toFixed(2)}`}{" "}
-                    {change !== 0 && `(${change > 0 ? "+" : ""}${change}%)`}
-                  </span>
-                  <TrendingUp className={`w-3.5 h-3.5 ${change > 0 ? "text-emerald-400" : change < 0 ? "text-red-400 rotate-90" : "text-gray-500"}`} />
-                </>
-              );
-            })()}
-          </div>
-
           <WalletChip />
-
-          <button
-            onClick={() => soon("Multiplayer world")}
-            title="Multiplayer world: coming soon"
-            className="hidden 2xl:flex opacity-45 grayscale cursor-not-allowed items-center gap-1.5 px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 rounded-xl text-xs font-bold transition-all"
-          >
-            <Globe2 className="w-3.5 h-3.5" />
-            <span>World · soon</span>
-          </button>
-
-          <button
-            onClick={() => setShowStatusBoard(true)}
-            title="Status Board & P&L Dashboard"
-            className="hidden 2xl:flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold transition-all"
-          >
-            <BarChart3 className="w-3.5 h-3.5" />
-            <span>P&L</span>
-          </button>
-
-          <button
-            onClick={toggleSound}
-            title="Toggle Sound Effects"
-            className="p-2 text-gray-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors"
-          >
-            {soundEnabled ? (
-              <Volume2 className="w-4 h-4 text-emerald-400" />
-            ) : (
-              <VolumeX className="w-4 h-4 text-gray-500" />
-            )}
+          <button onClick={toggleSound} aria-label={soundEnabled ? "Mute sounds" : "Turn sounds on"} aria-pressed={!soundEnabled} className="btn btn-icon">
+            {soundEnabled ? <Volume2 className="h-4 w-4" aria-hidden /> : <VolumeX className="h-4 w-4" aria-hidden />}
           </button>
         </div>
       </header>
 
-      {/* LEFT DOCK: Slim Quick-Access Icon Rail */}
-      <nav className="fixed left-4 top-24 z-30 pointer-events-auto flex flex-col gap-2.5 bg-[#1c1815]/92 border border-[#d4a359]/35 p-2 rounded-2xl shadow-2xl backdrop-blur-md">
-        <button
-          onClick={handleFocusPlayerPlot}
-          title="Center on My Shop (Plot #0)"
-          className="p-2.5 bg-[#10b981]/20 hover:bg-emerald-600/40 text-emerald-400 border border-emerald-500/40 rounded-xl transition-all group flex flex-col items-center"
-        >
-          <Crosshair className="w-4 h-4" />
-          <span className="text-[9px] font-mono mt-0.5 group-hover:block hidden">My Shop</span>
-        </button>
-
-        <button
-          onClick={() => setShowStatusBoard(true)}
-          title="Status Board & P&L Dashboard"
-          className="p-2.5 bg-[#d4a359]/15 hover:bg-amber-600/30 text-amber-400 border border-[#d4a359]/25 hover:border-amber-500/50 rounded-xl transition-all group flex flex-col items-center"
-        >
-          <BarChart3 className="w-4 h-4" />
-          <span className="text-[9px] font-mono mt-0.5 group-hover:block hidden">P&L</span>
-        </button>
-
-        <button
-          onClick={() => soon("Multiplayer world")}
-          title="Multiplayer world: coming soon"
-          className="relative opacity-45 grayscale cursor-not-allowed p-2.5 bg-[#d4a359]/15 hover:bg-indigo-600/30 text-indigo-400 border border-[#d4a359]/25 hover:border-indigo-500/50 rounded-xl transition-all group flex flex-col items-center"
-        >
-          <Globe2 className="w-4 h-4" />
-          <span className="text-[9px] font-mono mt-0.5 group-hover:block hidden">Soon</span>
-        </button>
-
-        <button
-          onClick={() => soon("The bank")}
-          title="Bank: coming soon"
-          className="relative opacity-45 grayscale cursor-not-allowed p-2.5 bg-[#d4a359]/15 hover:bg-emerald-600/30 text-emerald-400 border border-[#d4a359]/25 hover:border-emerald-500/50 rounded-xl transition-all group flex flex-col items-center"
-        >
-          <Building2 className="w-4 h-4" />
-          <span className="text-[9px] font-mono mt-0.5 group-hover:block hidden">Bank</span>
-        </button>
-
-        <button
-          onClick={() => useGameStore.setState({ auctionActive: true })}
-          title="Auction House (Sealed-Bid Shipments)"
-          className="p-2.5 bg-[#d4a359]/15 hover:bg-amber-600/30 text-amber-400 border border-[#d4a359]/25 hover:border-amber-500/50 rounded-xl transition-all group flex flex-col items-center"
-        >
-          <Play className="w-4 h-4" />
-          <span className="text-[9px] font-mono mt-0.5 group-hover:block hidden">Auction</span>
-        </button>
-
-        <button
-          onClick={() => soon("The Intel Guild")}
-          title="Intel Guild: coming soon"
-          className="relative opacity-45 grayscale cursor-not-allowed p-2.5 bg-[#d4a359]/15 hover:bg-purple-600/30 text-purple-400 border border-[#d4a359]/25 hover:border-purple-500/50 rounded-xl transition-all group flex flex-col items-center"
-        >
-          <Eye className="w-4 h-4" />
-          <span className="text-[9px] font-mono mt-0.5 group-hover:block hidden">Intel</span>
-        </button>
-
-        <button
-          onClick={() => setShowGuidedTour(true)}
-          title="Interactive 0-to-100 Guided Tour"
-          className="p-2.5 bg-[#d4a359]/15 hover:bg-amber-600/30 text-amber-300 border border-[#d4a359]/25 hover:border-amber-500/50 rounded-xl transition-all group flex flex-col items-center"
-        >
-          <Sparkles className="w-4 h-4" />
-          <span className="text-[9px] font-mono mt-0.5 group-hover:block hidden">Tour</span>
-        </button>
-
-        <button
-          onClick={() => setShowUncleRavi(true)}
-          title="Uncle Ravi's Advice"
-          className="p-2.5 bg-[#d4a359]/15 hover:bg-orange-600/30 text-orange-400 border border-[#d4a359]/25 hover:border-orange-500/50 rounded-xl transition-all group flex flex-col items-center"
-        >
-          <HelpCircle className="w-4 h-4" />
-          <span className="text-[9px] font-mono mt-0.5 group-hover:block hidden">Guide</span>
-        </button>
-
-        {SHOW_DEMO && (
-        <button
-          onClick={() => setIsDirectorOpen(!isDirectorOpen)}
-          title="Demo tools (not part of the game)"
-          className="p-2.5 bg-[#d4a359]/15 hover:bg-indigo-600/30 text-indigo-400 border border-[#d4a359]/25 hover:border-indigo-500/50 rounded-xl transition-all group flex flex-col items-center"
-        >
-          <Sliders className="w-4 h-4" />
-          <span className="text-[9px] font-mono mt-0.5 group-hover:block hidden">Director</span>
-        </button>
-        )}
+      <nav aria-label="Main" className="fixed left-4 top-[92px] z-30 flex flex-col gap-3 max-sm:top-[150px]">
+        {dock.map((d) => (
+          <button key={d.name} onClick={d.onClick} className="btn !h-[72px] !w-[72px] flex-col !gap-0.5 !px-0">
+            <Badge icon={d.icon} size={38} />
+            <span className="text-xs">{d.name}</span>
+          </button>
+        ))}
       </nav>
 
-      {toast && (
-        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl bg-[#1c1815]/95 border border-[#d4a359]/50 text-xs font-bold text-amber-200 shadow-2xl backdrop-blur-md pointer-events-none">
-          {toast}
-        </div>
-      )}
-
-      {/* TOP CENTER EVENT BANNER */}
-      <div className="fixed top-16 left-1/2 -translate-x-1/2 z-20 pointer-events-auto max-w-lg w-full px-4">
+      <div className="pointer-events-none fixed inset-x-4 top-[92px] z-20 flex justify-center [&>*]:pointer-events-auto">
         <EventBanner />
       </div>
+      {toast && (
+        <p role="status" className="panel pointer-events-none fixed left-1/2 top-[176px] z-[60] w-max max-w-[90vw] -translate-x-1/2 animate-pop !bg-gold px-4 py-2 font-display text-sm font-semibold">{toast}</p>
+      )}
 
-      {/* BOTTOM FLOATING BAR: City Ledger Ticker + Camera Controls */}
-      <div className="fixed bottom-3 left-4 right-4 z-30 pointer-events-none flex items-end justify-between gap-4">
-        {/* City Ledger on Left */}
-        <div className="pointer-events-auto w-[620px] max-w-full rounded-2xl overflow-hidden shadow-2xl border border-[#d4a359]/35 bg-[#1c1815]/95 backdrop-blur-md">
-          <CityLedger />
-        </div>
-
-        {/* Camera Control Pill on Right */}
-        <div className="pointer-events-auto flex items-center gap-1.5 bg-[#1c1815]/92 border border-[#d4a359]/35 p-1.5 rounded-2xl shadow-2xl backdrop-blur-md">
-          <button
-            onClick={handleZoomIn}
-            title="Zoom In"
-            className="p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
-          >
-            <ZoomIn className="w-4 h-4" />
-          </button>
-          <button
-            onClick={handleZoomOut}
-            title="Zoom Out"
-            className="p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
-          >
-            <ZoomOut className="w-4 h-4" />
-          </button>
-          <button
-            onClick={handleFocusPlayerPlot}
-            title="Center on My Shop (Plot #0)"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#10b981]/25 hover:bg-[#10b981]/35 text-emerald-300 border border-emerald-500/50 rounded-xl text-xs font-bold transition-all"
-          >
-            <Crosshair className="w-3.5 h-3.5" />
-            <span>My Shop</span>
-          </button>
-          <button
-            onClick={handleResetCamera}
-            title="Reset Diorama View"
-            className="p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-xl transition-colors"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
+      <div className="pointer-events-none fixed inset-x-4 bottom-3 z-30 flex flex-wrap items-end justify-between gap-3">
+        <div className="pointer-events-auto"><CityLedger /></div>
+        {guideOpen && <Guide steps={steps} onClose={closeGuide} />}
+        <div role="group" aria-label="Camera" className="pointer-events-auto ml-auto flex gap-2">
+          <button onClick={() => engineRef.current?.zoomIn()} aria-label="Zoom in" className="btn btn-icon"><ZoomIn className="h-4 w-4" aria-hidden /></button>
+          <button onClick={() => engineRef.current?.zoomOut()} aria-label="Zoom out" className="btn btn-icon"><ZoomOut className="h-4 w-4" aria-hidden /></button>
+          <button onClick={() => engineRef.current?.resetCamera()} aria-label="Show the whole town" title="Show the whole town" className="btn btn-icon"><Maximize className="h-4 w-4" aria-hidden /></button>
         </div>
       </div>
 
-      {/* Slide-over Right Plot Inspector */}
-      {selectedPlot && (
+      {plot && (
         <PlotInspector
-          plot={selectedPlot}
-          chain={chainLive ? { gd: chain.gd, inventory: chain.inventory, upgrades: chain.upgrades } : undefined}
-          onRestock={() => gameChain.restock(20).catch((e) => addLedgerItem({ type: "TICK", message: `Restock failed: ${String(e.message ?? e).slice(0, 80)}`, signature: "sim-restock", latencyMs: 0, network: "Base" }))}
-          onUpgrade={() => gameChain.buyUpgrade(1, "Signage (+15% traffic)").catch((e) => addLedgerItem({ type: "TICK", message: `Upgrade failed: ${String(e.message ?? e).slice(0, 80)}`, signature: "sim-upgrade", latencyMs: 0, network: "Base" }))}
-          onClose={() => setSelectedPlot(null)}
-          onReprice={handleRepricePlot}
-          onHireManager={() => soon("Hiring managers")}
-          onScoutPlot={() => soon("Scouting")}
+          key={plot.id}
+          plot={plot}
+          rivals={rivals}
+          myPriceCents={mine?.priceCents ?? 0}
+          gd={gd}
+          restockCostGd={restockCost}
+          stockCap={stockCap}
+          live={live}
+          signage={live && (chain.upgrades & 1) !== 0}
+          onClose={closeInspector}
+          onReprice={reprice}
+          onRestock={restock}
+          onUpgrade={upgrade}
         />
       )}
-
-      {/* Modals & Overlays */}
+      {boardOpen && (
+        <TownBoard shops={shops} onClose={() => setBoardOpen(false)} onShop={openShop} onPlace={(id) => { engineRef.current?.focusPlace(id); openPlace(id); }} />
+      )}
       <AuctionModal />
-      <ResultsModal />
-      <BankModal
-        isOpen={isBankOpen}
-        onClose={() => setIsBankOpen(false)}
-        reputation={reputation}
-      />
-      <IntelModal isOpen={isIntelOpen} onClose={() => setIsIntelOpen(false)} />
-      <GuidedTour
-        isOpen={showGuidedTour}
-        onClose={() => setShowGuidedTour(false)}
-        onFocusPlot={handleFocusPlayerPlot}
-        onOpenBank={() => soon("The bank")}
-        onOpenAuction={() => useGameStore.setState({ auctionActive: true })}
-        onReprice={(price) => handleRepricePlot(0, price)}
-      />
-      <MultiplayerLobbyModal
-        isOpen={showMultiplayerLobby}
-        onClose={() => setShowMultiplayerLobby(false)}
-        worldId="season-alpha-1"
-        onJoinWorld={(id) => {
-          addLedgerItem({
-            type: "TICK",
-            message: `Switched to world ${id} on MagicBlock Ephemeral Rollup`,
-            signature: "3vK8...worldJoin",
-            latencyMs: 22,
-            network: "ER",
-          });
-          setShowMultiplayerLobby(false);
-        }}
-        humanPlayersCount={2}
-        botPlayersCount={2}
-        isEphemeralRollupActive={true}
-      />
-      <StatusBoardModal
-        isOpen={showStatusBoard}
-        onClose={() => setShowStatusBoard(false)}
-        day={day}
-        cashGd={displayCash}
-        netWorthGd={displayNetWorth}
-        reputation={reputation}
-        customersServedToday={customersServedToday}
-        revenueTodayCents={revenueTodayCents}
-        wholesaleExpensesCents={500}
-        rentExpensesCents={400}
-        stallsLeaderboard={stallsLeaderboard}
-      />
-      {showUncleRavi && (
-        <UncleRaviOverlay
-          currentStage={uncleRaviStage}
-          onAdvance={() => setUncleRaviStage((prev) => (prev < 2 ? prev + 1 : 0))}
-          onDismiss={() => setShowUncleRavi(false)}
-        />
-      )}
-      {SHOW_DEMO && (
-      <DemoDirectorToolbar
-        isOpen={isDirectorOpen}
-        onToggle={() => setIsDirectorOpen(!isDirectorOpen)}
-        onToggleNight={handleToggleNight}
-        onSimulateSolPump={handleSimulateSolPump}
-        onTriggerMarginCall={handleTriggerMarginCall}
-        onFastForwardDay={handleFastForwardDay}
-        isNight={isNight}
-        solPriceChange={solPumpChange}
-      />
-      )}
     </div>
   );
 };

@@ -6,6 +6,8 @@ import { GridPathfinder, Point } from "./pathfinding";
 import { sfx } from "../audio/sfx";
 import { demandModifiers } from "./cityEvents";
 import { useGameStore } from "../store/gameStore";
+import { PLACES, shopKind, uiIcon, price, type PlaceId } from "./shopKinds";
+import { createSign, drawShopSign, drawPlaceSign, drawLeaseSign, label, SIGN_FONT, type Sign } from "./signs";
 
 export type PlotOwnerType = "player" | "rivalHuman" | "bot" | "unclaimed";
 
@@ -28,10 +30,8 @@ export interface PlotInfo {
   revenueTodayCents: number;
   sprite: PIXI.Sprite;
   container: PIXI.Container;
-  overheadPill?: PIXI.Container;
-  stockBarFill?: PIXI.Graphics;
+  sign?: Sign;
   haloGraphic?: PIXI.Graphics;
-  forLeaseSign?: PIXI.Container;
 }
 
 export interface LandmarkInfo {
@@ -41,6 +41,19 @@ export interface LandmarkInfo {
   gx: number;
   gy: number;
   sprite: PIXI.Sprite;
+}
+
+/** something on the map that can be hovered and clicked */
+interface Target {
+  key: string;
+  container: PIXI.Container;
+  sprite: PIXI.Sprite;
+  ring: PIXI.Graphics;
+  sign: Sign;
+  /** the sign always shows its full board (your shop) / only appears on hover (empty lots) */
+  pinned?: boolean;
+  onHoverOnly?: boolean;
+  onClick: () => void;
 }
 
 export interface CustomerNPC {
@@ -69,6 +82,7 @@ export class IsometricEngineV3 {
 
   public groundLayer: PIXI.Container = new PIXI.Container();
   public entitiesLayer: PIXI.Container = new PIXI.Container();
+  public signLayer: PIXI.Container = new PIXI.Container();
   public uiLayer: PIXI.Container = new PIXI.Container();
 
   public readonly GRID_SIZE = 28;
@@ -80,13 +94,18 @@ export class IsometricEngineV3 {
   public landmarks: LandmarkInfo[] = [];
   public npcs: CustomerNPC[] = [];
   /** buildings are clicked through the viewport (Pixi hit-testing only caught a sliver of each sprite) */
-  private clickTargets: { container: PIXI.Container; top: number; bottom: number; highlight?: PIXI.Graphics; onClick: () => void }[] = [];
+  private targets: Target[] = [];
+  private hovered: Target | null = null;
+  private selected: string | null = null;
+  /** lot silhouette in lot-local coordinates: the 2x2 footprint plus the building above it */
+  private static readonly HIT = new PIXI.Polygon([-82, 50, -80, -4, 0, -60, 80, -4, 82, 50, 0, 95]);
   public floatingTexts: { container: PIXI.Container; yVelocity: number; alphaVelocity: number }[] = [];
 
   // Callbacks for React HUD
   public onPlotClick?: (plot: PlotInfo) => void;
   public onLandmarkClick?: (modal: string) => void;
   public onCustomerServed?: (plotId: number, priceCents: number) => void;
+  public onEmptyClick?: () => void;
 
   private isNight: boolean = false;
   private nightFilter: PIXI.Graphics = new PIXI.Graphics();
@@ -113,9 +132,8 @@ export class IsometricEngineV3 {
     await app.init({
       width,
       height,
-      backgroundColor: 0x090d16,
-      antialias: false,
-      roundPixels: true,
+      backgroundColor: 0x14231d,
+      antialias: true,
       resolution: window.devicePixelRatio || 1,
       autoDensity: true,
     });
@@ -148,24 +166,24 @@ export class IsometricEngineV3 {
       if (t) {
         sfx.playPriceClick();
         t.onClick();
-      }
+      } else this.onEmptyClick?.();
     });
     viewport.on("pointermove", (e: PIXI.FederatedPointerEvent) => {
       const w = viewport.toWorld(e.global.x, e.global.y);
-      const t = this.pickAt(w.x, w.y);
-      this.clickTargets.forEach((c) => c.highlight && (c.highlight.visible = c === t));
-      app.canvas.style.cursor = t ? "pointer" : "";
+      this.hovered = this.pickAt(w.x, w.y);
+      app.canvas.style.cursor = this.hovered ? "pointer" : "";
     });
 
     viewport.addChild(this.groundLayer);
     viewport.addChild(this.entitiesLayer);
+    viewport.addChild(this.signLayer);
     viewport.addChild(this.uiLayer);
+    this.signLayer.sortableChildren = true;
     app.stage.addChild(this.nightFilter);
 
     this.entitiesLayer.sortableChildren = true;
 
-    // Load textures with scaleMode = 'nearest'
-    await this.preloadTextures();
+    await Promise.all([this.preloadTextures(), document.fonts.load(`600 14px ${SIGN_FONT}`).catch(() => [])]);
     if (this.destroyed) { app.destroy(true, { children: true }); this.app = null; return; }
 
     // Build 28x28 terrain grid
@@ -219,6 +237,9 @@ export class IsometricEngineV3 {
   private async preloadTextures() {
     const allUrls = new Set<string>();
 
+    for (const n of ["coffee", "food", "tech", "flower", "book", "gavel", "bank", "eye", "mask", "clerk", "help"]) allUrls.add(uiIcon(n));
+    for (let i = 0; i < 6; i++) allUrls.add(`/assets/people/person${i}.png`);
+
     Object.values(BUILDING_SPRITES.businesses).forEach((bz) => {
       allUrls.add(bz.base);
       allUrls.add(bz.upgraded);
@@ -234,7 +255,7 @@ export class IsometricEngineV3 {
       [...allUrls].map(async (url) => {
         try {
           const tex = await PIXI.Assets.load(url);
-          if (tex && tex.source) tex.source.scaleMode = url.includes("/tiles/") ? "linear" : "nearest";
+          if (tex && tex.source) tex.source.scaleMode = "linear";
         } catch (err) {
           console.warn("Preload warning:", url, err);
         }
@@ -242,13 +263,64 @@ export class IsometricEngineV3 {
     );
   }
 
-  private pickAt(wx: number, wy: number) {
-    let best: (typeof this.clickTargets)[number] | null = null;
-    for (const t of this.clickTargets) {
+  private pickAt(wx: number, wy: number): Target | null {
+    // signs are drawn above everything, so they win
+    for (const t of this.targets) {
+      const r = t.sign.root;
+      if (!r.visible) continue;
+      const w = ((t.sign.compact.visible ? 36 : t.sign.width + 10) / 2) * r.scale.x, h = 20 * r.scale.y;
+      if (Math.abs(wx - r.x) <= w && Math.abs(wy - r.y) <= h) return t;
+    }
+    let best: Target | null = null;
+    for (const t of this.targets) {
       const c = t.container;
-      if (Math.abs(wx - c.x) <= 100 && wy >= c.y + t.top && wy <= c.y + t.bottom && (!best || c.zIndex > best.container.zIndex)) best = t;
+      if (IsometricEngineV3.HIT.contains(wx - c.x, wy - c.y) && (!best || c.zIndex > best.container.zIndex)) best = t;
     }
     return best;
+  }
+
+  private diamond(g: PIXI.Graphics, color: number, fill: number, width: number) {
+    g.clear().poly([0, 4, 90, 49, 0, 94, -90, 49]).fill({ color, alpha: fill }).stroke({ width, color, alpha: 0.95, join: "round" });
+  }
+
+  /** register a clickable lot: ground ring, name sign, hover and selection state */
+  private addTarget(key: string, container: PIXI.Container, sprite: PIXI.Sprite, sign: Sign, onClick: () => void, signY = 2 * this.TILE_H - 12): Target {
+    const ring = new PIXI.Graphics();
+    ring.visible = false;
+    container.addChildAt(ring, 0);
+    sign.root.position.set(container.x, container.y + signY);
+    sign.root.zIndex = sign.root.y;
+    this.signLayer.addChild(sign.root);
+    const t: Target = { key, container, sprite, ring, sign, onClick };
+    this.targets.push(t);
+    return t;
+  }
+
+  /** signs keep a readable size at any zoom, collapse to badges far out, and react to hover and selection */
+  private syncTargets() {
+    const zoom = this.viewport?.scale.x ?? 1;
+    const k = Math.max(0.72, Math.min(1.75, 0.95 / zoom));
+    for (const t of this.targets) {
+      const hot = t === this.hovered, sel = t.key === this.selected;
+      const compact = zoom < 0.68 && !hot && !sel && !t.pinned;
+      t.sign.root.visible = !t.onHoverOnly || hot || sel;
+      t.sign.full.visible = !compact;
+      t.sign.compact.visible = compact;
+      t.sign.tip.visible = hot;
+      t.sign.root.scale.set(k * (hot ? 1.12 : 1));
+      t.sign.root.zIndex = hot || sel ? 1e6 : t.pinned ? 5e5 : t.sign.root.y;
+      t.sprite.y = this.TILE_H - (hot || sel ? 4 : 0);
+      if (sel !== (t.ring.label === "sel") || hot !== t.ring.visible) {
+        t.ring.label = sel ? "sel" : "";
+        this.diamond(t.ring, sel ? 0xffc23f : 0xfff1c8, sel ? 0.28 : 0.18, sel ? 5 : 3);
+      }
+      t.ring.visible = hot || sel;
+    }
+  }
+
+  /** highlight a plot (by id) or a place; null clears it */
+  public select(key: number | PlaceId | null) {
+    this.selected = key === null ? null : typeof key === "number" ? `plot-${key}` : key;
   }
 
   private tileVariant(kind: TileKind, x: number, y: number): number {
@@ -349,22 +421,16 @@ export class IsometricEngineV3 {
    * Place Clickable Town Landmarks
    */
   private placeLandmarks() {
-    const labels: Record<string, { modal: string; label: string }> = {
-      bank: { modal: "bank", label: "Bank of Bazaar" },
-      townHall: { modal: "auction", label: "Town Hall & Auction" },
-      intel: { modal: "intel", label: "Intel & Scouting" },
-      manager: { modal: "manager", label: "Manager Office" },
-      spectator: { modal: "spectator", label: "Spectator Hall" },
-      uncleRavi: { modal: "uncleRavi", label: "Uncle Ravi's Shop" },
-    };
+    const ids: Record<string, PlaceId> = { bank: "bank", townHall: "auction", intel: "intel", manager: "manager", spectator: "spectator", uncleRavi: "uncleRavi" };
     TOWN.lots
       .filter((l) => l.role === "landmark")
       .forEach((lot) => {
-        const info = labels[lot.landmarkId!];
-        const c = this.addLotSprite(lot, true, () => {
-          if (this.onLandmarkClick) this.onLandmarkClick(info.modal);
-        });
-        this.landmarks.push({ id: lot.landmarkId!, label: info.label, modal: info.modal, gx: lot.gx, gy: lot.gy, container: c } as unknown as LandmarkInfo);
+        const place = PLACES.find((p) => p.id === ids[lot.landmarkId!])!;
+        const { container, sprite } = this.addLotSprite(lot);
+        const sign = createSign();
+        drawPlaceSign(sign, place);
+        this.addTarget(place.id, container, sprite, sign, () => this.onLandmarkClick?.(place.id), -44);
+        this.landmarks.push({ id: place.id, label: place.name, modal: place.id, gx: lot.gx, gy: lot.gy, sprite });
       });
 
     // four gates on the avenue ends; arches face along the avenue
@@ -374,7 +440,7 @@ export class IsometricEngineV3 {
       ["city-gate", 13, 26],
       ["city-gate-ew", 0, 13],
     ];
-    gates.forEach(([sprite, gx, gy]) => this.addLotSprite({ gx, gy, role: "outskirt", sprite, folder: "exterior" }, false, undefined, false));
+    gates.forEach(([sprite, gx, gy]) => this.addLotSprite({ gx, gy, role: "outskirt", sprite, folder: "exterior" }));
   }
 
   /**
@@ -413,9 +479,9 @@ export class IsometricEngineV3 {
     TOWN.plotSlots.forEach((slot, id) => {
       const o = owners[id];
       const bType = types[id % types.length];
-      const isUpgraded = id === 0 || id % 4 === 0;
+      const isUpgraded = id !== 0 && id % 4 === 0;
       const bConfig = BUILDING_SPRITES.businesses[bType as keyof typeof BUILDING_SPRITES.businesses] || BUILDING_SPRITES.businesses.CoffeeCart;
-      const spritePath = o.ownerType === "unclaimed" ? BUILDING_SPRITES.businesses.Vacant.base : (isUpgraded ? bConfig.upgraded : bConfig.base);
+      const spritePath = o.ownerType === "unclaimed" ? BUILDING_SPRITES.businesses.Vacant.base : (isUpgraded && id !== 0 ? bConfig.upgraded : bConfig.base);
 
       const plotInfo: PlotInfo = {
         id,
@@ -450,164 +516,47 @@ export class IsometricEngineV3 {
     container.x = iso.x;
     container.y = iso.y;
 
-    // 1. Ground Halo (Distinct Visual Ownership Marker)
-    const halo = new PIXI.Graphics();
+    const halo = new PIXI.Graphics(); // permanent ground marker under the player's own shop
     plot.haloGraphic = halo;
     this.refreshPlotHalo(plot);
     container.addChild(halo);
 
-    // 2. Soft building shadow
-    // 3. Building Sprite
-    let sprite: PIXI.Sprite;
-    try {
-      sprite = PIXI.Sprite.from(spritePath);
-    } catch (_) {
-      sprite = new PIXI.Sprite();
-    }
+    const sprite = PIXI.Sprite.from(spritePath);
     sprite.anchor.set(0.5, SPRITE_ANCHOR_Y);
     sprite.scale.set(SPRITE_SCALE);
     sprite.y = this.TILE_H; // lot centre
     plot.sprite = sprite;
     container.addChild(sprite);
 
-    // 4. Floating Overhead Pill (Ownership, Price & Stock)
-    const pill = new PIXI.Container();
-    pill.y = -70;
-    plot.overheadPill = pill;
-    this.buildOverheadPill(plot);
-    container.addChild(pill);
-
-    // 5. Interactivity
-    this.clickTargets.push({ container, top: -132, bottom: 76, onClick: () => { if (this.onPlotClick) this.onPlotClick(plot); } });
-
     container.zIndex = iso.y + this.TILE_H;
     this.entitiesLayer.addChild(container);
+
+    plot.sign = createSign();
+    this.buildSign(plot);
+    const t = this.addTarget(`plot-${plot.id}`, container, sprite, plot.sign, () => this.onPlotClick?.(plot));
+    t.pinned = plot.ownerType === "player";
+    t.onHoverOnly = plot.ownerType === "unclaimed";
 
     return container;
   }
 
   private refreshPlotHalo(plot: PlotInfo) {
     if (!plot.haloGraphic) return;
-    const g = plot.haloGraphic;
-    g.clear();
-
-    if (plot.ownerType === "player") {
-      // Emerald / Gold Glowing Halo
-      g.ellipse(0, this.TILE_H, 84, 42);
-      g.stroke({ width: 3, color: 0x10b981, alpha: 0.95 });
-      g.fill({ color: 0xf59e0b, alpha: 0.16 });
-    } else if (plot.ownerType === "rivalHuman") {
-      // Crimson / Ruby Halo
-      g.ellipse(0, this.TILE_H, 80, 40);
-      g.stroke({ width: 2.5, color: 0xef4444, alpha: 0.85 });
-      g.fill({ color: 0xef4444, alpha: 0.12 });
-    } else if (plot.ownerType === "bot") {
-      // Sleek Indigo Halo
-      g.ellipse(0, this.TILE_H, 78, 39);
-      g.stroke({ width: 2, color: 0x6366f1, alpha: 0.75 });
-      g.fill({ color: 0x6366f1, alpha: 0.08 });
-    } else {
-      // Unclaimed / For Lease (Cobblestone Dashed Border)
-      g.ellipse(0, this.TILE_H, 76, 38);
-      g.stroke({ width: 1.5, color: 0xd4a359, alpha: 0.5 });
-    }
+    plot.haloGraphic.clear();
+    if (plot.ownerType === "player") this.diamond(plot.haloGraphic, 0x3fd68a, 0.22, 4);
   }
 
-  private buildOverheadPill(plot: PlotInfo) {
-    if (!plot.overheadPill) return;
-    const pill = plot.overheadPill;
-    pill.removeChildren();
-
-    if (plot.ownerType === "unclaimed") {
-      // Wooden "FOR AUCTION / LEASE" Sign
-      const sign = new PIXI.Graphics();
-      sign.roundRect(-42, -12, 84, 22, 6);
-      sign.fill({ color: 0x1c1815, alpha: 0.92 });
-      sign.stroke({ width: 1.5, color: 0xd4a359, alpha: 0.8 });
-      pill.addChild(sign);
-      const signTail = new PIXI.Graphics(); // points down at the building the tag belongs to
-      signTail.poly([-5, 10, 5, 10, 0, 17]);
-      signTail.fill({ color: 0xd4a359, alpha: 0.9 });
-      pill.addChild(signTail);
-
-      const txt = new PIXI.Text({
-        text: "📜 FOR LEASE",
-        style: {
-          fontFamily: "JetBrains Mono, monospace",
-          fontSize: 9,
-          fontWeight: "bold",
-          fill: 0xf59e0b,
-        },
-      });
-      txt.anchor.set(0.5, 0.5);
-      pill.addChild(txt);
-      return;
-    }
-
-    const isSoldOut = plot.inventory <= 0;
-    const pillBg = new PIXI.Graphics();
-
-    // Background pill dimensions
-    const w = plot.ownerType === "player" ? 110 : 96;
-    const h = 24;
-    pillBg.roundRect(-w / 2, -h / 2, w, h, 8);
-
-    if (plot.ownerType === "player") {
-      pillBg.fill({ color: 0x091b14, alpha: 0.94 });
-      pillBg.stroke({ width: 2, color: 0x10b981 });
-    } else if (plot.ownerType === "rivalHuman") {
-      pillBg.fill({ color: 0x1c0f12, alpha: 0.94 });
-      pillBg.stroke({ width: 1.5, color: 0xef4444 });
-    } else {
-      pillBg.fill({ color: 0x11162b, alpha: 0.92 });
-      pillBg.stroke({ width: 1.5, color: 0x6366f1 });
-    }
-    pill.addChild(pillBg);
-    const tail = new PIXI.Graphics(); // points down at the building the tag belongs to
-    tail.poly([-5, h / 2 - 1, 5, h / 2 - 1, 0, h / 2 + 6]);
-    tail.fill({ color: plot.ownerType === "player" ? 0x10b981 : plot.ownerType === "rivalHuman" ? 0xef4444 : 0x6366f1, alpha: 0.95 });
-    pill.addChild(tail);
-
-    // Label Text
-    let label = `$${(plot.priceCents / 100).toFixed(2)}`;
-    if (plot.ownerType === "player") label = `★ YOU • $${(plot.priceCents / 100).toFixed(2)}`;
-    else if (isSoldOut) label = `SOLD OUT`;
-
-    const labelText = new PIXI.Text({
-      text: label,
-      style: {
-        fontFamily: "JetBrains Mono, monospace",
-        fontSize: plot.ownerType === "player" ? 10 : 9,
-        fontWeight: "bold",
-        fill: isSoldOut ? 0xef4444 : (plot.ownerType === "player" ? 0x34d399 : 0xf7f0e3),
-      },
-    });
-    labelText.anchor.set(0.5, 0.5);
-    labelText.y = -2;
-    pill.addChild(labelText);
-
-    // Compact Stock Bar underneath
-    const barW = w - 16;
-    const barH = 3;
-    const stockBarBg = new PIXI.Graphics();
-    stockBarBg.roundRect(-barW / 2, 6, barW, barH, 1.5);
-    stockBarBg.fill({ color: 0x27272a });
-    pill.addChild(stockBarBg);
-
-    const stockRatio = Math.max(0, Math.min(1, plot.inventory / plot.maxInventory));
-    const stockFill = new PIXI.Graphics();
-    stockFill.roundRect(-barW / 2, 6, barW * stockRatio, barH, 1.5);
-    const stockColor = stockRatio > 0.4 ? 0x10b981 : stockRatio > 0.15 ? 0xf59e0b : 0xef4444;
-    stockFill.fill({ color: stockColor });
-    plot.stockBarFill = stockFill;
-    pill.addChild(stockFill);
+  private buildSign(plot: PlotInfo) {
+    if (!plot.sign) return;
+    if (plot.ownerType === "unclaimed") drawLeaseSign(plot.sign);
+    else drawShopSign(plot.sign, { name: shopKind(plot.businessType).name, icon: shopKind(plot.businessType).icon, price: price(plot.priceCents), stock: plot.inventory / plot.maxInventory, mine: plot.ownerType === "player" });
   }
 
   /** outskirts, accents, parks, fountain, street lamps and trees */
   private placeScenery() {
     TOWN.lots
       .filter((l) => l.role !== "landmark" && l.role !== "plot")
-      .forEach((l) => this.addLotSprite(l, false));
+      .forEach((l) => this.addLotSprite(l));
 
     TOWN.props.forEach((pr) => {
       const container = new PIXI.Container();
@@ -629,37 +578,22 @@ export class IsometricEngineV3 {
     });
   }
 
-  /** 2x2 sprite centred on its lot; landmarks are clickable with a hover ring */
-  private addLotSprite(lot: Pick<Lot, "gx" | "gy" | "sprite" | "folder" | "role">, interactive: boolean, onClick?: () => void, block = true): PIXI.Container {
+  /** 2x2 sprite centred on its lot */
+  private addLotSprite(lot: Pick<Lot, "gx" | "gy" | "sprite" | "folder" | "role">) {
     const container = new PIXI.Container();
     const iso = this.toIso(lot.gx, lot.gy);
     container.x = iso.x;
     container.y = iso.y;
 
-    let sprite: PIXI.Sprite;
-    try {
-      sprite = PIXI.Sprite.from(`/assets/${lot.folder}/${lot.sprite}.png`);
-    } catch (_) {
-      sprite = new PIXI.Sprite();
-    }
+    const sprite = PIXI.Sprite.from(`/assets/${lot.folder}/${lot.sprite}.png`);
     sprite.anchor.set(0.5, SPRITE_ANCHOR_Y);
     sprite.scale.set(SPRITE_SCALE);
     sprite.y = this.TILE_H;
     container.addChild(sprite);
 
-    if (interactive) {
-      const highlight = new PIXI.Graphics();
-      highlight.ellipse(0, this.TILE_H, 84, 42);
-      highlight.stroke({ width: 2.5, color: 0xf59e0b, alpha: 0.9 });
-      highlight.fill({ color: 0xf59e0b, alpha: 0.12 });
-      highlight.visible = false;
-      container.addChildAt(highlight, 0);
-      this.clickTargets.push({ container, top: -110, bottom: 76, highlight, onClick: () => { if (onClick) onClick(); } });
-    }
-
     container.zIndex = iso.y + this.TILE_H;
     this.entitiesLayer.addChild(container);
-    return container;
+    return { container, sprite };
   }
 
   /**
@@ -710,19 +644,10 @@ export class IsometricEngineV3 {
     container.x = iso.x;
     container.y = iso.y + this.TILE_H / 2;
 
-    // Stylized Pixel NPC
-    const g = new PIXI.Graphics();
-    const colors = [0x38bdf8, 0xf43f5e, 0xa855f7, 0x34d399, 0xfbbf24];
-    const col = colors[Math.floor(Math.random() * colors.length)];
-
-    g.circle(0, -9, 4); // Head
-    g.fill({ color: 0xffedd5 });
-    g.roundRect(-3.5, -4, 7, 9, 2); // Body
-    g.fill({ color: col });
-    g.ellipse(0, 6, 5, 2.5); // Shadow
-    g.fill({ color: 0x000000, alpha: 0.35 });
-
-    container.addChild(g);
+    const person = PIXI.Sprite.from(`/assets/people/person${Math.floor(Math.random() * 6)}.png`);
+    person.anchor.set(0.5, 0.9);
+    person.scale.set(0.34);
+    container.addChild(person);
     container.zIndex = iso.y + 10;
     this.entitiesLayer.addChild(container);
 
@@ -779,8 +704,12 @@ export class IsometricEngineV3 {
         npc.gy = gy;
 
         const iso = this.toIso(gx, gy);
+        const face = iso.x >= npc.container.x ? 1 : -1;
         npc.container.x = iso.x;
-        npc.container.y = iso.y + this.TILE_H / 2 + Math.sin(npc.stepT * Math.PI) * 2;
+        npc.container.y = iso.y + this.TILE_H / 2;
+        const body = npc.container.children[0];
+        body.y = -Math.abs(Math.sin(npc.stepT * Math.PI * 2)) * 3;
+        body.scale.x = Math.abs(body.scale.x) * face;
         npc.container.zIndex = iso.y + 10;
       } else if (npc.state === "PURCHASING") {
         npc.pauseTimer -= delta;
@@ -792,24 +721,19 @@ export class IsometricEngineV3 {
             plot.customersServed += 1;
             plot.revenueTodayCents += plot.priceCents;
 
-            // Trigger sound & gold particle
-            sfx.playChing();
-            this.spawnFloatingText(
-              npc.container.x,
-              npc.container.y - 30,
-              `+$${(plot.priceCents / 100).toFixed(2)}`
-            );
-
-            // Rebuild overhead stock pill
-            this.buildOverheadPill(plot);
+            if (plot.ownerType === "player") {
+              sfx.playChing();
+              this.spawnFloatingText(npc.container.x, npc.container.y - 40, `+${price(plot.priceCents)}`);
+            }
+            this.buildSign(plot);
 
             if (this.onCustomerServed) {
               this.onCustomerServed(plot.id, plot.priceCents);
             }
           } else {
             // Plot is sold out!
-            this.spawnFloatingText(npc.container.x, npc.container.y - 30, "SOLD OUT", 0xef4444);
-            this.buildOverheadPill(plot);
+            if (plot.ownerType === "player") this.spawnFloatingText(npc.container.x, npc.container.y - 40, "Sold out!", 0xff8a75);
+            this.buildSign(plot);
           }
 
           // Path out through city gate
@@ -844,8 +768,12 @@ export class IsometricEngineV3 {
         npc.gy = gy;
 
         const iso = this.toIso(gx, gy);
+        const face = iso.x >= npc.container.x ? 1 : -1;
         npc.container.x = iso.x;
-        npc.container.y = iso.y + this.TILE_H / 2 + Math.sin(npc.stepT * Math.PI) * 2;
+        npc.container.y = iso.y + this.TILE_H / 2;
+        const body = npc.container.children[0];
+        body.y = -Math.abs(Math.sin(npc.stepT * Math.PI * 2)) * 3;
+        body.scale.x = Math.abs(body.scale.x) * face;
         npc.container.zIndex = iso.y + 10;
       }
     }
@@ -862,6 +790,7 @@ export class IsometricEngineV3 {
     }
 
     this.entitiesLayer.sortChildren();
+    this.syncTargets();
   }
 
   public spawnFloatingText(x: number, y: number, textStr: string, fillColor: number = 0x10b981) {
@@ -869,16 +798,8 @@ export class IsometricEngineV3 {
     cont.x = x;
     cont.y = y;
 
-    const t = new PIXI.Text({
-      text: textStr,
-      style: {
-        fontFamily: "JetBrains Mono, monospace",
-        fontSize: 13,
-        fontWeight: "bold",
-        fill: fillColor,
-        stroke: { color: 0x000000, width: 3 },
-      },
-    });
+    const t = label(textStr, 17, fillColor === 0x10b981 ? 0xffd34d : fillColor, "700");
+    t.style.stroke = { color: 0x2a1c15, width: 4, join: "round" };
     t.anchor.set(0.5, 0.5);
     cont.addChild(t);
 
@@ -898,16 +819,19 @@ export class IsometricEngineV3 {
     });
   }
 
-  public focusPlot(plotId: number) {
+  /** pan to a plot; `panel` keeps it clear of the inspector on the right */
+  public focusPlot(plotId: number, panel = false) {
     const plot = this.plots.find((p) => p.id === plotId);
-    if (plot && this.viewport) {
-      const iso = this.toIso(plot.gx, plot.gy);
-      this.viewport.animate({
-        position: { x: iso.x, y: iso.y + this.TILE_H },
-        scale: 1.25,
-        time: 500,
-      });
-    }
+    if (plot) this.panTo(plot.gx, plot.gy, panel);
+  }
+  public focusPlace(id: PlaceId) {
+    const place = this.landmarks.find((l) => l.id === id);
+    if (place) this.panTo(place.gx, place.gy, false);
+  }
+  private panTo(gx: number, gy: number, panel: boolean) {
+    if (!this.viewport) return;
+    const iso = this.toIso(gx, gy), scale = Math.max(1.05, Math.min(1.4, this.viewport.scale.x));
+    this.viewport.animate({ position: { x: iso.x + (panel ? 190 / scale : 0), y: iso.y + this.TILE_H }, scale, time: 450, ease: "easeOutCubic" });
   }
 
   public zoomIn() {
@@ -940,9 +864,15 @@ export class IsometricEngineV3 {
   public updatePlotData(plotId: number, data: Partial<PlotInfo>) {
     const plot = this.plots.find((p) => p.id === plotId);
     if (!plot) return;
+    const changed = Object.entries(data).some(([k, v]) => plot[k as keyof PlotInfo] !== v);
+    if (!changed) return;
     Object.assign(plot, data);
+    if (data.isUpgraded !== undefined) {
+      const b = BUILDING_SPRITES.businesses[plot.businessType as keyof typeof BUILDING_SPRITES.businesses];
+      plot.sprite.texture = PIXI.Assets.get(plot.isUpgraded ? b.upgraded : b.base);
+    }
     this.refreshPlotHalo(plot);
-    this.buildOverheadPill(plot);
+    this.buildSign(plot);
   }
 
   public destroy() {

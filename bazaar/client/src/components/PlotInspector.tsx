@@ -1,162 +1,124 @@
 import React, { useState } from "react";
-import { Building, ShieldCheck, DollarSign, TrendingUp, X, Sparkles, Award } from "lucide-react";
-import { PlotInfo } from "../engine/IsometricEngineV3";
-import { sfx } from "../audio/sfx";
+import { Minus, Plus, Loader2 } from "lucide-react";
+import type { PlotInfo } from "../engine/IsometricEngineV3";
 import { InteriorBanner } from "./InteriorBanner";
 import { interiorFor } from "../engine/buildingRegistry";
+import { shopKind, price } from "../engine/shopKinds";
+import { Meter, PanelHead } from "./ui";
 
-interface PlotInspectorProps {
-  plot: PlotInfo | null;
+const TIERS = { Corner: "Corner plot", MainStreet: "Main Street", SideStreet: "Side Street", Alley: "Alley" } as const;
+export const MIN_PRICE = 100, MAX_PRICE = 600;
+export const RESTOCK_UNITS = 20;
+
+interface Props {
+  plot: PlotInfo;
+  /** the other shops with stock, cheapest first */
+  rivals: PlotInfo[];
+  myPriceCents: number;
+  /** your GD (wallet balance when playing on-chain, practice coins otherwise) */
+  gd: number;
+  restockCostGd: number;
+  stockCap: number;
+  /** true when actions are real transactions */
+  live: boolean;
+  signage: boolean;
   onClose: () => void;
-  onReprice: (plotId: number, newPriceCents: number) => void;
-  onHireManager: (plotId: number) => void;
-  onScoutPlot: (plotId: number) => void;
-  /** present only when the player is playing on-chain */
-  chain?: { gd: number; inventory: number; upgrades: number };
-  onRestock?: () => Promise<unknown> | void;
-  onUpgrade?: () => Promise<unknown> | void;
+  onReprice: (cents: number) => void;
+  onRestock: () => Promise<unknown> | void;
+  onUpgrade: () => Promise<unknown> | void;
 }
 
-export const PlotInspector: React.FC<PlotInspectorProps> = ({
-  plot,
-  onClose,
-  onReprice,
-  onHireManager,
-  onScoutPlot,
-  chain,
-  onRestock,
-  onUpgrade,
-}) => {
-  const [busy, setBusy] = useState<string | null>(null);
-  const run = async (id: string, fn?: () => Promise<unknown> | void) => {
-    if (!fn || busy) return;
+export const PlotInspector: React.FC<Props> = ({ plot, rivals, myPriceCents, gd, restockCostGd, stockCap, live, signage, onClose, onReprice, onRestock, onUpgrade }) => {
+  const [busy, setBusy] = useState<"restock" | "upgrade" | null>(null);
+  const run = async (id: "restock" | "upgrade", fn: () => Promise<unknown> | void) => {
+    if (busy) return;
     setBusy(id);
     try { await fn(); } finally { setBusy(null); }
   };
-  if (!plot) return null;
-
-  const isLocalOwner = plot.id === 0;
+  const mine = plot.ownerType === "player";
+  const empty = plot.ownerType === "unclaimed";
+  const kind = shopKind(plot.businessType);
+  const cheapest = rivals[0];
+  const beaten = rivals.filter((r) => r.priceCents > plot.priceCents).length;
+  const gap = plot.priceCents - myPriceCents;
+  const full = plot.inventory + RESTOCK_UNITS > stockCap;
+  const restockWhy = full ? "Shelves are full" : gd < restockCostGd ? "Not enough GD" : null;
 
   return (
-    <div className="fixed top-20 right-6 z-40 w-[340px] max-h-[calc(100vh-7rem)] overflow-y-auto bg-[#1c1815]/95 border border-[#d4a359]/40 rounded-2xl p-5 shadow-2xl backdrop-blur-md text-[#f7f0e3] animate-slideLeft">
-      {/* Top Header */}
-      <div className="flex items-start justify-between pb-3 border-b border-[#d4a359]/20 mb-3">
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 bg-[#d4a359]/20 rounded-xl border border-[#d4a359]/40 text-amber-400">
-            <Building className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-1.5">
-              <h3 className="font-serif font-black text-sm text-white">Plot #{plot.id}</h3>
-              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-400 font-bold border border-amber-500/30">
-                {plot.tier.toUpperCase()}
-              </span>
-            </div>
-            <p className="text-[11px] text-gray-400 font-mono">{plot.streetName}</p>
-          </div>
-        </div>
-        <button onClick={onClose} className="text-gray-400 hover:text-white p-1 rounded">
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-
-      <InteriorBanner
-        src={interiorFor(plot.ownerType === "unclaimed" ? "Vacant" : plot.businessType, plot.isUpgraded)}
-        alt={`${plot.businessType} interior`}
-        className="mb-3"
+    <aside aria-label="Shop details" className="panel fixed right-4 top-[92px] z-40 flex max-h-[calc(100vh-176px)] w-[344px] max-w-[calc(100vw-2rem)] animate-pop flex-col">
+      <PanelHead
+        icon={empty ? "tag" : kind.icon}
+        title={empty ? "Empty lot" : mine ? "Corner Roast" : kind.name}
+        sub={`${empty ? "For lease" : mine ? "Your shop" : `Run by ${plot.owner}`} · ${TIERS[plot.tier]}`}
+        onClose={onClose}
       />
+      <div className="space-y-3 overflow-y-auto p-4">
+        <InteriorBanner src={interiorFor(empty ? "Vacant" : plot.businessType, plot.isUpgraded)} alt={empty ? "Empty lot" : `Inside the ${kind.name.toLowerCase()}`} />
 
-      {/* Business Details */}
-      <div className="space-y-3 font-mono text-xs mb-4">
-        <div className="bg-[#120f0d] p-3 rounded-xl border border-[#d4a359]/20 space-y-1.5">
-          <div className="flex justify-between">
-            <span className="text-gray-400 font-sans">Business:</span>
-            <span className="font-bold text-amber-300">{plot.businessType}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400 font-sans">Proprietor:</span>
-            <span className={isLocalOwner ? "text-emerald-400 font-bold" : "text-gray-300"}>
-              {plot.owner || "Unclaimed (Auctionable)"}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400 font-sans">Current Price:</span>
-            <span className="font-bold text-white">${(plot.priceCents / 100).toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400 font-sans">Inventory:</span>
-            <span className="font-bold text-emerald-400">{plot.inventory} Units</span>
-          </div>
-          {plot.isUpgraded && (
-            <div className="flex items-center gap-1 text-[10px] text-amber-400 font-bold pt-1">
-              <Sparkles className="w-3 h-3" />
-              <span>Upgraded Facade (+10% Price Tolerance)</span>
-            </div>
-          )}
-        </div>
+        {empty ? (
+          <>
+            <p className="text-sm font-semibold text-soft">Nobody trades here yet. Leasing more shops is not built.</p>
+            <button className="btn w-full" disabled>Lease this lot <span className="soon">soon</span></button>
+          </>
+        ) : (
+          <>
+            <section className="well p-3">
+              <div className="flex items-center justify-between gap-2">
+                {mine ? (
+                  <button className="btn btn-icon" aria-label="Lower price by 5 cents" disabled={plot.priceCents <= MIN_PRICE} onClick={() => onReprice(Math.max(MIN_PRICE, plot.priceCents - 5))}>
+                    <Minus className="h-4 w-4" aria-hidden />
+                  </button>
+                ) : <span />}
+                <div className="text-center">
+                  <div className="font-display text-4xl font-bold tabular-nums leading-none">{price(plot.priceCents)}</div>
+                  <div className="mt-1 text-xs font-bold text-soft">per sale</div>
+                </div>
+                {mine ? (
+                  <button className="btn btn-icon" aria-label="Raise price by 5 cents" disabled={plot.priceCents >= MAX_PRICE} onClick={() => onReprice(Math.min(MAX_PRICE, plot.priceCents + 5))}>
+                    <Plus className="h-4 w-4" aria-hidden />
+                  </button>
+                ) : <span />}
+              </div>
+              {mine ? (
+                <>
+                  <input type="range" aria-label="Your price" min={MIN_PRICE} max={MAX_PRICE} step={5} value={plot.priceCents} onChange={(e) => onReprice(Number(e.target.value))} className="mt-3 h-2 w-full cursor-pointer accent-wood" />
+                  <p className="mt-2 text-center text-xs font-bold">
+                    {cheapest ? (
+                      <>Cheaper than <span className="text-leaf">{beaten}</span> of {rivals.length} shops. Lowest rival: {price(cheapest.priceCents)}</>
+                    ) : "No rival has stock right now."}
+                  </p>
+                </>
+              ) : (
+                <p className="mt-2 text-center text-xs font-bold">
+                  {gap === 0 ? "Same price as you." : <>{price(Math.abs(gap))} <span className={gap > 0 ? "text-leaf" : "text-berry"}>{gap > 0 ? "more" : "less"}</span> than your shop.</>}
+                </p>
+              )}
+            </section>
 
-        {/* If local owner: repricing slider */}
-        {isLocalOwner ? (
-          <div className="space-y-2">
-            <div className="flex justify-between text-xs font-sans">
-              <span className="text-gray-400 font-bold">Reprice Stall (Session Key):</span>
-              <span className="font-mono font-black text-amber-400">${(plot.priceCents / 100).toFixed(2)}</span>
-            </div>
-            <input
-              type="range"
-              min={100}
-              max={600}
-              step={10}
-              value={plot.priceCents}
-              onChange={(e) => onReprice(plot.id, Number(e.target.value))}
-              className="w-full accent-[#d4a359] h-2 bg-gray-800 rounded-lg cursor-pointer"
-            />
-            {chain && (
-              <div className="space-y-1.5 pt-1">
-                <div className="flex justify-between text-[10px] font-mono text-gray-400">
-                  <span>On-chain stock</span>
-                  <span className={chain.inventory < 10 ? "text-red-400 font-bold" : "text-emerald-400 font-bold"}>{chain.inventory} units</span>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => run("restock", onRestock)}
-                    disabled={!!busy || chain.gd < 30 || chain.inventory + 20 > 200 * ((chain.upgrades & 2) ? 2 : 1)}
-                    title="20 units x $1.50 wholesale, paid in GD"
-                    className="flex-1 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 disabled:opacity-40 text-emerald-300 border border-emerald-500/40 rounded-xl font-bold font-sans text-xs transition-all"
-                  >
-                    {busy === "restock" ? "Paying…" : "Restock +20 (−30 GD)"}
-                  </button>
-                  <button
-                    onClick={() => run("upgrade", onUpgrade)}
-                    disabled={!!busy || (chain.upgrades & 1) !== 0 || chain.gd < 1000}
-                    title="Signage: +15% foot traffic, paid in GD"
-                    className="flex-1 py-2 bg-amber-600/20 hover:bg-amber-600/30 disabled:opacity-40 text-amber-300 border border-amber-500/40 rounded-xl font-bold font-sans text-xs transition-all"
-                  >
-                    {(chain.upgrades & 1) !== 0 ? "Signage ✓" : busy === "upgrade" ? "Paying…" : "Signage (−1,000 GD)"}
-                  </button>
-                </div>
+            <section className="space-y-1.5">
+              <div className="flex justify-between text-sm font-extrabold">
+                <span>Stock</span>
+                <span className="tabular-nums">{plot.inventory === 0 ? "Sold out" : `${plot.inventory} left`}</span>
+              </div>
+              <Meter label="Stock" value={plot.inventory} max={mine ? stockCap : plot.maxInventory} />
+            </section>
+
+            {mine && (
+              <div className="space-y-2 pt-1">
+                <button className="btn btn-leaf w-full justify-between" disabled={!!busy || !!restockWhy} onClick={() => run("restock", onRestock)}>
+                  <span className="flex items-center gap-2">{busy === "restock" && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}{busy === "restock" ? "Restocking…" : `Restock +${RESTOCK_UNITS}`}</span>
+                  <span className="tabular-nums">{restockWhy ?? `${restockCostGd.toLocaleString(undefined, { maximumFractionDigits: 2 })} GD`}</span>
+                </button>
+                <button className="btn btn-gold w-full justify-between" disabled={!!busy || signage || !live || gd < 1000} onClick={() => run("upgrade", onUpgrade)}>
+                  <span className="flex items-center gap-2">{busy === "upgrade" && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}{signage ? "Signage installed" : "Put up signage"}</span>
+                  {!signage && <span>{!live ? "Needs wallet" : "1,000 GD"}</span>}
+                </button>
+                <p className="text-xs font-semibold text-soft">{live ? "Signed by your session key. No wallet pop-up." : "Practice mode: nothing is saved on-chain. Connect a wallet to play for real."}</p>
               </div>
             )}
-            <div className="flex gap-2 pt-2">
-              <button
-                onClick={() => onHireManager(plot.id)}
-                className="flex-1 py-2 bg-[#d4a359]/10 text-amber-300/70 border border-[#d4a359]/20 rounded-xl font-bold font-sans text-xs transition-all opacity-50 grayscale cursor-not-allowed"
-              >
-                Hire Manager · soon
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="pt-1">
-            <button
-              onClick={() => onScoutPlot(plot.id)}
-              className="w-full py-2.5 bg-purple-600/10 text-purple-200/70 border border-purple-500/20 rounded-xl font-bold font-sans text-xs transition-all flex items-center justify-center gap-2 opacity-50 grayscale cursor-not-allowed"
-            >
-              Scout rival · soon
-            </button>
-          </div>
+          </>
         )}
       </div>
-    </div>
+    </aside>
   );
 };

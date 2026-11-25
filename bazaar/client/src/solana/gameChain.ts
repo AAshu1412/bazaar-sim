@@ -1,4 +1,4 @@
-import { parseCityEvent, EVENT_SECONDS, type CityEvent } from "../engine/cityEvents";
+import { parseCityEvent, EVENT_SECONDS, EVENT_TITLES, type CityEvent } from "../engine/cityEvents";
 /**
  * On-chain game client. The player's real wallet signs exactly once, to authorise a MagicBlock session key
  * (and top it up with a little SOL for fees). Every game transaction after that is signed by the session key:
@@ -357,7 +357,7 @@ export class GameChain {
       const event = !err && parseCityEvent(logs);
       if (!event) return;
       this.set({ cityEvent: { ...event, signature } });
-      this.log("VRF", { message: `City event drawn by VRF: ${event.name}`, signature, latencyMs: 0, isLive: true, er: true });
+      this.log("VRF", { message: `City event (VRF): ${EVENT_TITLES[event.name]}`, signature, latencyMs: 0, isLive: true, er: true });
       clearTimeout(clear);
       clear = setTimeout(() => this.set({ cityEvent: null }), EVENT_SECONDS * 1000);
       this.eventTimers.push(clear);
@@ -455,7 +455,7 @@ export class GameChain {
     this.priceTimer = setTimeout(() => this.enqueue(async () => {
       const target = this.state.pendingPrice ?? priceCents;
       try {
-        await this.timed("PRICE", `Stall #0 repriced to $${(target / 100).toFixed(2)} on-chain`, () =>
+        await this.timed("PRICE", `Your price is now $${(target / 100).toFixed(2)}`, () =>
           this.send([this.ix("set_business_price", u16(target), this.common())], 100_000, this.state.erMode));
         this.set({ priceCents: target, pendingPrice: this.state.pendingPrice === target ? null : this.state.pendingPrice });
       } catch (e) {

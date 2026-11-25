@@ -3,7 +3,9 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Resvg } from "@resvg/resvg-js";
 import { Scene } from "./engine.mjs";
-import { BUILDINGS } from "./buildings.mjs";
+import { BUILDINGS as TOWN_BUILDINGS } from "./buildings.mjs";
+import { SHOPS } from "./shops.mjs";
+const BUILDINGS = { ...TOWN_BUILDINGS, ...SHOPS };
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const svgDir = `${here}../project/exterior/`, pngDir = `${here}../../public/assets/exterior/`;
