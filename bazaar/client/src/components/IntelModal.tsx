@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { Eye, Shield, Send, CheckCircle, X } from "lucide-react";
 import { sfx } from "../audio/sfx";
+import { InteriorBanner } from "./InteriorBanner";
+import { landmarkInterior } from "../engine/buildingRegistry";
 
 interface IntelModalProps {
   isOpen: boolean;
@@ -32,6 +34,8 @@ export const IntelModal: React.FC<IntelModalProps> = ({ isOpen, onClose }) => {
         <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white">
           <X className="w-5 h-5" />
         </button>
+
+        <InteriorBanner src={landmarkInterior("intel-guild")} alt="Intel guild interior" className="mb-4" />
 
         <div className="flex items-center gap-3 mb-4">
           <div className="p-2.5 bg-purple-500/20 text-purple-400 rounded-xl border border-purple-500/40">

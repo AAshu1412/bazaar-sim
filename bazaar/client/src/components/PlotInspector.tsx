@@ -2,6 +2,8 @@ import React from "react";
 import { Building, ShieldCheck, DollarSign, TrendingUp, X, Sparkles, Award } from "lucide-react";
 import { PlotInfo } from "../engine/IsometricEngineV3";
 import { sfx } from "../audio/sfx";
+import { InteriorBanner } from "./InteriorBanner";
+import { interiorFor } from "../engine/buildingRegistry";
 
 interface PlotInspectorProps {
   plot: PlotInfo | null;
@@ -44,6 +46,12 @@ export const PlotInspector: React.FC<PlotInspectorProps> = ({
           <X className="w-4 h-4" />
         </button>
       </div>
+
+      <InteriorBanner
+        src={interiorFor(plot.ownerType === "unclaimed" ? "Vacant" : plot.businessType, plot.isUpgraded)}
+        alt={`${plot.businessType} interior`}
+        className="mb-3"
+      />
 
       {/* Business Details */}
       <div className="space-y-3 font-mono text-xs mb-4">

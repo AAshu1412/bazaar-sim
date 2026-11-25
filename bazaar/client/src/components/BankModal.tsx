@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { Building2, AlertTriangle, ShieldCheck, DollarSign, X } from "lucide-react";
 import { sfx } from "../audio/sfx";
+import { InteriorBanner } from "./InteriorBanner";
+import { landmarkInterior } from "../engine/buildingRegistry";
 
 interface BankModalProps {
   isOpen: boolean;
@@ -39,6 +41,8 @@ export const BankModal: React.FC<BankModalProps> = ({ isOpen, onClose, reputatio
         >
           <X className="w-5 h-5" />
         </button>
+
+        <InteriorBanner src={landmarkInterior("bank")} alt="Bank vault interior" className="mb-4" />
 
         <div className="flex items-center gap-3 mb-4">
           <div className="p-2.5 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/40">

@@ -110,3 +110,10 @@ export const BUILDING_SPRITES = {
     "/assets/buildings/merchants-house.png",
   ],
 };
+
+/** Interior scene images: /assets/interior/<name>.png (see scripts/gen-assets.py) */
+const kebab = (s: string) => s.replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase();
+export const interiorFor = (businessKind: string, upgraded = false) =>
+  `/assets/interior/${kebab(businessKind)}${upgraded ? "-upgraded" : ""}.png`;
+export const landmarkInterior = (id: "bank" | "town-hall" | "intel-guild" | "manager-office" | "spectator-hall" | "uncle-ravi") =>
+  `/assets/interior/${id}.png`;
