@@ -38,6 +38,7 @@ import { MultiplayerLobbyModal } from "./components/MultiplayerLobbyModal";
 import { StatusBoardModal } from "./components/StatusBoardModal";
 import { useGameStore } from "./store/gameStore";
 import { sfx } from "./audio/sfx";
+import { onChainService } from "./solana/onChainService";
 
 export const App: React.FC = () => {
   const {
@@ -217,7 +218,21 @@ export const App: React.FC = () => {
     sfx.playChing();
   };
 
-  // Reprice Plot via Session Key
+  const logChain = (type: "PRICE" | "TICK") => (message: string, r: { signature: string; latencyMs: number; isLive: boolean }) =>
+    addLedgerItem({
+      type,
+      message: r.isLive ? message : `${message} [simulated]`,
+      signature: r.signature,
+      latencyMs: r.latencyMs,
+      network: "Base",
+    });
+
+  // Fund burner + create season/plot/business on devnet (idempotent)
+  useEffect(() => {
+    onChainService.bootstrap(logChain("TICK"));
+  }, []);
+
+  // Reprice Plot: optimistic UI, debounced real set_business_price on devnet
   const handleRepricePlot = (plotId: number, newPriceCents: number) => {
     if (engineRef.current) {
       engineRef.current.updatePlotData(plotId, { priceCents: newPriceCents });
@@ -225,13 +240,9 @@ export const App: React.FC = () => {
         setSelectedPlot({ ...selectedPlot, priceCents: newPriceCents });
       }
     }
-    addLedgerItem({
-      type: "PRICE",
-      message: `Stall #${plotId} repriced to $${(newPriceCents / 100).toFixed(2)} via Session Key`,
-      signature: "5aR1...sessionKey",
-      latencyMs: 16,
-      network: "ER",
-    });
+    if (plotId === 0) {
+      onChainService.setPriceOnChain(newPriceCents, logChain("PRICE"));
+    }
     sfx.playPriceClick();
   };
 

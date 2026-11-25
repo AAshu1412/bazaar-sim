@@ -52,15 +52,19 @@ export const CityLedger: React.FC = () => {
                 <span className="text-gray-200">{item.message}</span>
               </div>
 
-              <a
-                href={`https://explorer.solana.com/tx/${item.signature}?cluster=devnet`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1 text-gray-400 hover:text-indigo-400 transition-colors ml-4"
-              >
-                <span>{item.signature.substring(0, 8)}...</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
+              {item.signature.length > 40 ? (
+                <a
+                  href={`https://explorer.solana.com/tx/${item.signature}?cluster=devnet`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1 text-gray-400 hover:text-indigo-400 transition-colors ml-4"
+                >
+                  <span>{item.signature.substring(0, 8)}...</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              ) : (
+                <span className="text-gray-600 ml-4">{item.signature.substring(0, 8)}...</span>
+              )}
             </div>
           ))}
         </div>

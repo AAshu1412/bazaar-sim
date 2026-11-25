@@ -55,6 +55,23 @@ export interface CustomerNPC {
   exitGate: Point;
 }
 
+const FILLER_INNER = [
+{ gx: 6, gy: 3, file: "/assets/buildings/blacksmith-forge.png" },
+{ gx: 21, gy: 3, file: "/assets/buildings/weavers-workshop.png" },
+{ gx: 6, gy: 24, file: "/assets/buildings/potters-workshop.png" },
+{ gx: 21, gy: 24, file: "/assets/buildings/tannery.png" },
+  ];
+const FILLER_OUTER = [
+  { gx: 3, gy: 3, file: "/assets/buildings/sacred-grove.png" },
+  { gx: 24, gy: 3, file: "/assets/buildings/mill-house.png" },
+  { gx: 3, gy: 24, file: "/assets/buildings/stable-horse-market.png" },
+  { gx: 24, gy: 24, file: "/assets/buildings/dairy-barn.png" },
+  { gx: 13, gy: 4, file: "/assets/buildings/farmhouse-cottage.png" },
+  { gx: 14, gy: 23, file: "/assets/buildings/apiary-beekeeper.png" },
+  { gx: 4, gy: 14, file: "/assets/buildings/shrine-chapel.png" },
+  { gx: 23, gy: 13, file: "/assets/buildings/merchants-house.png" },
+];
+
 export class IsometricEngineV3 {
   public app: PIXI.Application | null = null;
   public viewport: Viewport | null = null;
@@ -204,6 +221,7 @@ export class IsometricEngineV3 {
     allUrls.add(BUILDING_SPRITES.landmarks.spectatorHall.sprite);
     allUrls.add(BUILDING_SPRITES.landmarks.uncleRavi.sprite);
     allUrls.add(BUILDING_SPRITES.landmarks.cityGate);
+    [...FILLER_INNER, ...FILLER_OUTER].forEach((f) => allUrls.add(f.file));
 
     for (const url of allUrls) {
       try {
@@ -555,25 +573,9 @@ export class IsometricEngineV3 {
   }
 
   private placePerimeterFiller() {
-    const innerCoords = [
-      { gx: 6, gy: 3, file: "/assets/buildings/blacksmith.png" },
-      { gx: 21, gy: 3, file: "/assets/buildings/weaver-tailor.png" },
-      { gx: 6, gy: 24, file: "/assets/buildings/pottery-workshop.png" },
-      { gx: 21, gy: 24, file: "/assets/buildings/tanner-leather.png" },
-    ];
-    innerCoords.forEach((ic) => this.addBuildingSprite(ic.file, ic.gx, ic.gy, false));
+    FILLER_INNER.forEach((ic) => this.addBuildingSprite(ic.file, ic.gx, ic.gy, false));
 
-    const outerCoords = [
-      { gx: 3, gy: 3, file: "/assets/buildings/sacred-grove.png" },
-      { gx: 24, gy: 3, file: "/assets/buildings/mill-house.png" },
-      { gx: 3, gy: 24, file: "/assets/buildings/stable-horse-market.png" },
-      { gx: 24, gy: 24, file: "/assets/buildings/dairy-barn.png" },
-      { gx: 13, gy: 4, file: "/assets/buildings/farmhouse-cottage.png" },
-      { gx: 14, gy: 23, file: "/assets/buildings/apiary-beekeeper.png" },
-      { gx: 4, gy: 14, file: "/assets/buildings/shrine-chapel.png" },
-      { gx: 23, gy: 13, file: "/assets/buildings/merchants-house.png" },
-    ];
-    outerCoords.forEach((oc) => this.addBuildingSprite(oc.file, oc.gx, oc.gy, false));
+    FILLER_OUTER.forEach((oc) => this.addBuildingSprite(oc.file, oc.gx, oc.gy, false));
   }
 
   private addBuildingSprite(

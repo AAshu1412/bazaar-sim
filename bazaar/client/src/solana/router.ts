@@ -1,4 +1,5 @@
 import { Connection, PublicKey } from "@solana/web3.js";
+import { Buffer } from "buffer";
 
 export const DEVNET_RPC_URL = "https://api.devnet.solana.com";
 export const ER_RPC_URL = "https://devnet.magicblock.app";
@@ -8,41 +9,39 @@ export const PROGRAM_ID = new PublicKey(
   "394dL2jzTtXjc3tWKTL2cPYyS7rcADAM338FbVumWSSi"
 );
 
+const u64 = (n: number | bigint) => {
+  const b = Buffer.alloc(8);
+  b.writeBigUInt64LE(BigInt(n));
+  return b;
+};
+const u16 = (n: number) => {
+  const b = Buffer.alloc(2);
+  b.writeUInt16LE(n);
+  return b;
+};
+
 /**
- * Three-tier connection router:
- * 1. Base Layer (Devnet): initialize_round, join_round, delegate_round, commit_and_settle
- * 2. Ephemeral Rollup (ER): set_price, advance_tick, trigger_event, open_auction, end_round
- * 3. Private ER (TDX): submit_bid, reveal_bids
+ * Connections + PDA helpers matching programs/bazaar (seeds: season, plot, business).
+ * The deployed program lives on base devnet; ER/PER conns are kept for delegation later.
  */
 export class ConnectionRouter {
-  public baseConn: Connection;
-  public erConn: Connection;
-  public perConn: Connection;
+  public baseConn = new Connection(DEVNET_RPC_URL, "confirmed");
+  public erConn = new Connection(ER_RPC_URL, "confirmed");
+  public perConn = new Connection(PRIVATE_ER_RPC_URL, "confirmed");
 
-  constructor() {
-    this.baseConn = new Connection(DEVNET_RPC_URL, "confirmed");
-    this.erConn = new Connection(ER_RPC_URL, "confirmed");
-    this.perConn = new Connection(PRIVATE_ER_RPC_URL, "confirmed");
+  public getSeasonPDA(seasonId: number | bigint): PublicKey {
+    return PublicKey.findProgramAddressSync([Buffer.from("season"), u64(seasonId)], PROGRAM_ID)[0];
   }
 
-  public getRoundPDA(roundId: number): [PublicKey, number] {
-    const roundBuffer = Buffer.alloc(8);
-    roundBuffer.writeBigUInt64LE(BigInt(roundId));
+  public getPlotPDA(seasonId: number | bigint, plotId: number): PublicKey {
     return PublicKey.findProgramAddressSync(
-      [Buffer.from("round"), roundBuffer],
+      [Buffer.from("plot"), u64(seasonId), u16(plotId)],
       PROGRAM_ID
-    );
+    )[0];
   }
 
-  public getAuctionPDA(roundId: number, auctionId: number): [PublicKey, number] {
-    const roundBuffer = Buffer.alloc(8);
-    roundBuffer.writeBigUInt64LE(BigInt(roundId));
-    const auctionBuffer = Buffer.alloc(8);
-    auctionBuffer.writeBigUInt64LE(BigInt(auctionId));
-    return PublicKey.findProgramAddressSync(
-      [Buffer.from("auction"), roundBuffer, auctionBuffer],
-      PROGRAM_ID
-    );
+  public getBusinessPDA(plot: PublicKey): PublicKey {
+    return PublicKey.findProgramAddressSync([Buffer.from("business"), plot.toBuffer()], PROGRAM_ID)[0];
   }
 }
 
