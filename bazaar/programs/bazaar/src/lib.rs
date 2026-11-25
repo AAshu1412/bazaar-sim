@@ -45,6 +45,10 @@ pub mod bazaar {
         handle_initialize_plot(ctx, season_id, plot_id, tier, street, position)
     }
 
+    pub fn claim_plot(ctx: Context<ClaimPlot>) -> Result<()> {
+        handle_claim_plot(ctx)
+    }
+
     pub fn set_lease(ctx: Context<SetLease>, rate: u64) -> Result<()> {
         handle_set_lease(ctx, rate)
     }
@@ -127,12 +131,8 @@ pub mod bazaar {
     }
 
     // ─── ORACLE MARKET SIGNALS ───
-    pub fn apply_market_signals(
-        ctx: Context<ApplyMarketSignals>,
-        sol_1h_change_bps: i16,
-        btc_volatility_bps: u16,
-    ) -> Result<()> {
-        handle_apply_market_signals(ctx, sol_1h_change_bps, btc_volatility_bps)
+    pub fn apply_market_signals(ctx: Context<ApplyMarketSignals>) -> Result<()> {
+        handle_apply_market_signals(ctx)
     }
 
     // ─── SPECTATORS & SPONSORSHIP ───

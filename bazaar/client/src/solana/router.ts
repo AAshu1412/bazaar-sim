@@ -1,7 +1,9 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 import { Buffer } from "buffer";
 
-export const DEVNET_RPC_URL = "https://api.devnet.solana.com";
+// VITE_RPC_URL lets you point the game at a local validator for testing
+export const DEVNET_RPC_URL: string =
+  (import.meta as any).env?.VITE_RPC_URL ?? "https://api.devnet.solana.com";
 export const ER_RPC_URL = "https://devnet.magicblock.app";
 export const PRIVATE_ER_RPC_URL = "https://devnet-per.magicblock.app";
 
@@ -31,6 +33,13 @@ export class ConnectionRouter {
 
   public getSeasonPDA(seasonId: number | bigint): PublicKey {
     return PublicKey.findProgramAddressSync([Buffer.from("season"), u64(seasonId)], PROGRAM_ID)[0];
+  }
+
+  public getSignalsPDA(seasonId: number | bigint): PublicKey {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("signals"), this.getSeasonPDA(seasonId).toBuffer()],
+      PROGRAM_ID
+    )[0];
   }
 
   public getPlotPDA(seasonId: number | bigint, plotId: number): PublicKey {

@@ -9,6 +9,7 @@ import {
 } from "@solana/web3.js";
 import { Buffer } from "buffer";
 import { PROGRAM_ID, router } from "./router";
+import { BTC_USD_FEED, SOL_USD_FEED } from "./pyth";
 
 const KEY_STORAGE = "bazaar.burner";
 const SEASON_STORAGE = "bazaar.season";
@@ -96,7 +97,6 @@ export class OnChainService {
     const business = router.getBusinessPDA(plot);
     this.businessPda = business;
     const sys = { pubkey: SystemProgram.programId, isSigner: false, isWritable: false };
-    const w = (pubkey: PublicKey, isSigner = false) => ({ pubkey, isSigner, isWritable: true });
 
     if (!(await conn.getAccountInfo(season))) {
       const data = Buffer.concat([await disc("create_season"), u64(this.seasonId), u64(1), u64(0)]);
@@ -108,17 +108,35 @@ export class OnChainService {
         await disc("initialize_plot"), u64(this.seasonId), u16(PLOT_ID), Buffer.from([2, 1, 0]),
       ]);
       const sig = await this.send([
-        this.ix(data, [w(plot), w(me, true), sys]),
-        // program has no buy-plot ix; take_lease is the only way to become eligible for open_business
-        this.ix(await disc("take_lease"), [w(plot), { pubkey: me, isSigner: true, isWritable: false }]),
+        this.ix(data, [ro(season), w(plot), w(me, true), sys]),
+        this.ix(await disc("claim_plot"), [w(plot), { pubkey: me, isSigner: true, isWritable: false }]),
       ]);
-      step("Plot #0 initialized and leased", sig);
+      step("Plot #0 initialized and claimed", sig);
     }
     if (!(await conn.getAccountInfo(business))) {
       const data = Buffer.concat([await disc("open_business"), Buffer.from([0]), u16(300)]); // CoffeeCart @ $3.00
       step("Corner Roast business opened", await this.send([this.ix(data, [w(business), w(plot), w(me, true), sys])]));
     }
     return true;
+  }
+
+  /** Permissionless crank: program reads Pyth PriceUpdateV2 accounts and stores SOL move / BTC volatility. */
+  public async crankMarketSignals(log: Log): Promise<void> {
+    const start = performance.now();
+    try {
+      if (!(await this.bootstrap(log))) throw new Error("not bootstrapped");
+      const me = this.burner.publicKey;
+      const sys = { pubkey: SystemProgram.programId, isSigner: false, isWritable: false };
+      const sig = await this.send([
+        this.ix(await disc("apply_market_signals"), [
+          ro(router.getSeasonPDA(this.seasonId)), w(router.getSignalsPDA(this.seasonId)),
+          ro(SOL_USD_FEED), ro(BTC_USD_FEED), w(me, true), sys,
+        ]),
+      ]);
+      log("Pyth market signals applied on-chain", { signature: sig, latencyMs: Math.round(performance.now() - start), isLive: true });
+    } catch (e) {
+      log(`Pyth market signals not applied: ${(e as Error).message}`, { signature: "sim-pyth", latencyMs: 0, isLive: false });
+    }
   }
 
   /** Debounced real set_business_price; slider spam collapses into one tx. Resolves with the final result. */
@@ -145,6 +163,7 @@ export class OnChainService {
   }
 }
 
-const w = (pubkey: PublicKey) => ({ pubkey, isSigner: false, isWritable: true });
+const w = (pubkey: PublicKey, isSigner = false) => ({ pubkey, isSigner, isWritable: true });
+const ro = (pubkey: PublicKey, isSigner = false) => ({ pubkey, isSigner, isWritable: false });
 
 export const onChainService = new OnChainService();

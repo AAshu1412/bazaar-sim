@@ -16,3 +16,9 @@ pub const BASE_DEMAND: u64 = 8;
 pub const AUCTION_WINDOW_SECS: i64 = 15;
 pub const SCOUT_COST_GD: u64 = 500;
 pub const LIQUIDATION_LTV_BPS: u16 = 8000; // 80.00%
+
+// Pyth price feed ids (https://pyth.network/developers/price-feed-ids)
+pub const SOL_USD_FEED_ID: &str = "0xef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d";
+pub const BTC_USD_FEED_ID: &str = "0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43";
+pub const MAX_PRICE_AGE_SECS: u64 = 120;   // reject stale oracle data
+pub const SIGNAL_WINDOW_SECS: i64 = 3600;  // reference price rolls hourly

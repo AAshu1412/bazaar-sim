@@ -39,6 +39,7 @@ import { StatusBoardModal } from "./components/StatusBoardModal";
 import { useGameStore } from "./store/gameStore";
 import { sfx } from "./audio/sfx";
 import { onChainService } from "./solana/onChainService";
+import { fetchSolPrice } from "./solana/pyth";
 
 export const App: React.FC = () => {
   const {
@@ -66,7 +67,9 @@ export const App: React.FC = () => {
   const [isIntelOpen, setIsIntelOpen] = useState<boolean>(false);
   const [isDirectorOpen, setIsDirectorOpen] = useState<boolean>(false);
   const [isNight, setIsNight] = useState<boolean>(false);
-  const [solPumpChange, setSolPumpChange] = useState<number>(0);
+  const [solPumpChange, setSolPumpChange] = useState<number>(0); // Director demo override
+  const [solPrice, setSolPrice] = useState<number | null>(null); // live Pyth SOL/USD
+  const [solLiveChange, setSolLiveChange] = useState<number>(0);
   const [uncleRaviStage, setUncleRaviStage] = useState<number>(0);
   const [showUncleRavi, setShowUncleRavi] = useState<boolean>(false);
   const [showGuidedTour, setShowGuidedTour] = useState<boolean>(false);
@@ -232,6 +235,27 @@ export const App: React.FC = () => {
     onChainService.bootstrap(logChain("TICK"));
   }, []);
 
+  // Live Pyth SOL/USD every 15s; push the signal on-chain every 5 min
+  useEffect(() => {
+    let lastCrank = 0;
+    const poll = async () => {
+      try {
+        const p = await fetchSolPrice();
+        setSolPrice(p.price);
+        setSolLiveChange(Number(p.change1hPct.toFixed(2)));
+        if (Date.now() - lastCrank > 300_000) {
+          lastCrank = Date.now();
+          onChainService.crankMarketSignals(logChain("TICK"));
+        }
+      } catch (e) {
+        console.warn("Pyth fetch failed", e);
+      }
+    };
+    poll();
+    const id = setInterval(poll, 15_000);
+    return () => clearInterval(id);
+  }, []);
+
   // Reprice Plot: optimistic UI, debounced real set_business_price on devnet
   const handleRepricePlot = (plotId: number, newPriceCents: number) => {
     if (engineRef.current) {
@@ -349,18 +373,18 @@ export const App: React.FC = () => {
         <div className="pointer-events-auto flex items-center gap-2.5 bg-[#1c1815]/92 border border-[#d4a359]/35 p-1.5 rounded-2xl shadow-2xl backdrop-blur-md">
           <div className="flex items-center gap-2 px-3 py-1 bg-[#120f0d] border border-[#d4a359]/20 rounded-xl text-xs font-mono">
             <span className="text-gray-400">Pyth SOL:</span>
-            <span
-              className={`font-bold ${
-                solPumpChange > 0 ? "text-emerald-400 animate-pulse" : "text-gray-200"
-              }`}
-            >
-              $184.20 {solPumpChange > 0 && `(+${solPumpChange}%)`}
-            </span>
-            <TrendingUp
-              className={`w-3.5 h-3.5 ${
-                solPumpChange > 0 ? "text-emerald-400" : "text-gray-500"
-              }`}
-            />
+            {(() => {
+              const change = solPumpChange > 0 ? solPumpChange : solLiveChange;
+              return (
+                <>
+                  <span className={`font-bold ${change > 0 ? "text-emerald-400" : change < 0 ? "text-red-400" : "text-gray-200"} ${solPumpChange > 0 ? "animate-pulse" : ""}`}>
+                    {solPrice === null ? "…" : `$${solPrice.toFixed(2)}`}{" "}
+                    {change !== 0 && `(${change > 0 ? "+" : ""}${change}%)`}
+                  </span>
+                  <TrendingUp className={`w-3.5 h-3.5 ${change > 0 ? "text-emerald-400" : change < 0 ? "text-red-400 rotate-90" : "text-gray-500"}`} />
+                </>
+              );
+            })()}
           </div>
 
           <button

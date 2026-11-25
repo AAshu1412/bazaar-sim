@@ -56,6 +56,7 @@ pub struct OpenDay<'info> {
 
 pub fn handle_open_day(ctx: Context<OpenDay>, _season_id: u64) -> Result<()> {
     let season = &mut ctx.accounts.season;
+    require!(ctx.accounts.cranker.key() == season.authority, BazaarError::Unauthorized);
     let clock = Clock::get()?;
     season.status = SeasonStatus::MarketHours;
     season.day_opened_at = clock.unix_timestamp;
@@ -77,6 +78,7 @@ pub struct CloseDay<'info> {
 
 pub fn handle_close_day(ctx: Context<CloseDay>, _season_id: u64) -> Result<()> {
     let season = &mut ctx.accounts.season;
+    require!(ctx.accounts.cranker.key() == season.authority, BazaarError::Unauthorized);
     season.status = SeasonStatus::Overnight;
     if season.day < DEFAULT_SEASON_DURATION_DAYS {
         season.day += 1;
