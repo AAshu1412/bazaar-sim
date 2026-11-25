@@ -12,43 +12,30 @@
 body{margin:0;font-family:Georgia,'Times New Roman',serif}
 </style>
 </helmet>
-<div style="width: 1280px; height: 1040px; box-sizing: border-box; padding: 48px 56px; background: #1c1815; color: #f7f0e3; display: flex; flex-direction: column; gap: 28px">
+<div style="width: 1280px; height: 1140px; box-sizing: border-box; padding: 48px 48px 40px; background: #1c1815; color: #f7f0e3; display: flex; flex-direction: column; gap: 28px">
   <div style="display: flex; flex-direction: column; gap: 8px">
-    <h1 style="margin: 0; font-size: 40px; letter-spacing: 0.02em; color: #e9c46a">Exterior sprites — style sample</h1>
-    <p style="margin: 0; font-size: 17px; line-height: 1.5; color: #cdbfa6; max-width: 880px; font-family: system-ui, sans-serif">Six of the 50 map buildings, drawn on the game's 302 × 256 canvas with the same isometric footprint, light from the left, dark outlines and a warm medieval palette. Approve or tweak this look and the rest of the set follows it.</p>
+    <h1 style="margin: 0; font-size: 40px; letter-spacing: 0.02em; color: #e9c46a">Exterior sprites</h1>
+    <p style="margin: 0; font-size: 17px; line-height: 1.5; color: #cdbfa6; max-width: 900px; font-family: system-ui, sans-serif">12 of the 50 map buildings. Each is generated on the game's 302 × 256 isometric footprint with real materials (brick, stone, timber, tile, thatch), lighting from the left, ambient shadow, framed windows, signs and props.</p>
   </div>
-  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px">
-    <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #2a241f; border: 1px solid #4a3f33; border-radius: 16px; padding: 18px 12px 14px">
-      <div style="width: 302px; height: 256px; background: #5e8f3d; border-radius: 10px; display: flex; align-items: center; justify-content: center"><img src="exterior/bakery.svg" alt="Bakery exterior" style="width: 302px; height: 256px; display: block"></div>
-      <span style="font-family: system-ui, sans-serif; font-size: 14px; font-weight: 600; color: #f7f0e3">Bakery</span>
-    </div>
-    <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #2a241f; border: 1px solid #4a3f33; border-radius: 16px; padding: 18px 12px 14px">
-      <div style="width: 302px; height: 256px; background: #5e8f3d; border-radius: 10px; display: flex; align-items: center; justify-content: center"><img src="exterior/bank-vault.svg" alt="Bank exterior" style="width: 302px; height: 256px; display: block"></div>
-      <span style="font-family: system-ui, sans-serif; font-size: 14px; font-weight: 600; color: #f7f0e3">First District Bank</span>
-    </div>
-    <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #2a241f; border: 1px solid #4a3f33; border-radius: 16px; padding: 18px 12px 14px">
-      <div style="width: 302px; height: 256px; background: #5e8f3d; border-radius: 10px; display: flex; align-items: center; justify-content: center"><img src="exterior/tavern-inn.svg" alt="Tavern exterior" style="width: 302px; height: 256px; display: block"></div>
-      <span style="font-family: system-ui, sans-serif; font-size: 14px; font-weight: 600; color: #f7f0e3">Tavern &amp; Inn</span>
-    </div>
-    <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #2a241f; border: 1px solid #4a3f33; border-radius: 16px; padding: 18px 12px 14px">
-      <div style="width: 302px; height: 256px; background: #5e8f3d; border-radius: 10px; display: flex; align-items: center; justify-content: center"><img src="exterior/clockmakers-workshop.svg" alt="Clockmaker exterior" style="width: 302px; height: 256px; display: block"></div>
-      <span style="font-family: system-ui, sans-serif; font-size: 14px; font-weight: 600; color: #f7f0e3">Clockmaker's Workshop</span>
-    </div>
-    <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #2a241f; border: 1px solid #4a3f33; border-radius: 16px; padding: 18px 12px 14px">
-      <div style="width: 302px; height: 256px; background: #5e8f3d; border-radius: 10px; display: flex; align-items: center; justify-content: center"><img src="exterior/herbalist-apothecary.svg" alt="Herbalist exterior" style="width: 302px; height: 256px; display: block"></div>
-      <span style="font-family: system-ui, sans-serif; font-size: 14px; font-weight: 600; color: #f7f0e3">Herbalist Apothecary</span>
-    </div>
-    <div style="display: flex; flex-direction: column; align-items: center; gap: 10px; background: #2a241f; border: 1px solid #4a3f33; border-radius: 16px; padding: 18px 12px 14px">
-      <div style="width: 302px; height: 256px; background: #5e8f3d; border-radius: 10px; display: flex; align-items: center; justify-content: center"><img src="exterior/scribe-bookshop.svg" alt="Bookshop exterior" style="width: 302px; height: 256px; display: block"></div>
-      <span style="font-family: system-ui, sans-serif; font-size: 14px; font-weight: 600; color: #f7f0e3">Scribe &amp; Bookshop</span>
-    </div>
+  <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px">
+    <sc-for list="{{items}}" as="item" hint-placeholder-count="12">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; background: #2a241f; border: 1px solid #4a3f33; border-radius: 16px; padding: 12px 10px 12px">
+        <div style="width: 100%; border-radius: 10px; background: #5e8f3d; display: flex; align-items: center; justify-content: center"><img src="{{item.src}}" alt="{{item.label}}" style="width: 100%; height: auto; display: block"></div>
+        <span style="font-family: system-ui, sans-serif; font-size: 14px; font-weight: 600; color: #f7f0e3">{{item.label}}</span>
+      </div>
+    </sc-for>
   </div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1040}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1140}}'>
 class Component extends DCLogic {
   renderVals() {
-    return {};
+    const names = [
+      ['spice-merchant', 'Spice Merchant'], ['brewery-distillery', 'Brewery & Distillery'], ['bakery', 'Bakery'], ['tavern-inn', 'Tavern & Inn'],
+      ['clockmakers-workshop', "Clockmaker's Workshop"], ['arcane-goods-shop', 'Arcane Goods'], ['alchemists-shop', "Alchemist's Shop"], ['library-bookshop', 'Grand Library'],
+      ['bank-vault', 'First District Bank'], ['town-hall', 'Town Hall'], ['blacksmith-forge', 'Blacksmith Forge'], ['mill-house', 'Watermill'],
+    ];
+    return { items: names.map(([f, label]) => ({ src: 'exterior/' + f + '.svg', label })) };
   }
 }
 </script>

@@ -12,27 +12,29 @@
 body{margin:0;font-family:Georgia,'Times New Roman',serif}
 </style>
 </helmet>
-<div style="width: 1280px; height: 640px; box-sizing: border-box; padding: 48px 56px; background: #1c1815; color: #f7f0e3; display: flex; flex-direction: column; gap: 28px">
+<div style="width: 1280px; height: 780px; box-sizing: border-box; padding: 48px 48px 40px; background: #1c1815; color: #f7f0e3; display: flex; flex-direction: column; gap: 28px">
   <div style="display: flex; flex-direction: column; gap: 8px">
-    <h1 style="margin: 0; font-size: 40px; letter-spacing: 0.02em; color: #e9c46a">Interior scenes — style sample</h1>
-    <p style="margin: 0; font-size: 17px; line-height: 1.5; color: #cdbfa6; max-width: 880px; font-family: system-ui, sans-serif">Shown in the shop inspector and the landmark panels (16:9, 768 × 432). Two of the 17 interiors: the bakery and the bank.</p>
+    <h1 style="margin: 0; font-size: 40px; letter-spacing: 0.02em; color: #e9c46a">Interior scenes</h1>
+    <p style="margin: 0; font-size: 17px; line-height: 1.5; color: #cdbfa6; max-width: 900px; font-family: system-ui, sans-serif">6 of the 17 interiors, shown in the shop inspector and the bank, intel and auction panels (16:9, 768 × 432). One-point perspective, lamp glow and light shafts, and props that tell you what the shop sells.</p>
   </div>
-  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px">
-    <div style="display: flex; flex-direction: column; gap: 10px">
-      <img src="interior/street-food.svg" alt="Bakery interior" style="width: 540px; height: 304px; display: block; border-radius: 14px; border: 1px solid #4a3f33">
-      <span style="font-family: system-ui, sans-serif; font-size: 14px; font-weight: 600; color: #f7f0e3">Bakery</span>
-    </div>
-    <div style="display: flex; flex-direction: column; gap: 10px">
-      <img src="interior/bank.svg" alt="Bank interior" style="width: 540px; height: 304px; display: block; border-radius: 14px; border: 1px solid #4a3f33">
-      <span style="font-family: system-ui, sans-serif; font-size: 14px; font-weight: 600; color: #f7f0e3">First District Bank</span>
-    </div>
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px">
+    <sc-for list="{{items}}" as="item" hint-placeholder-count="6">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <img src="{{item.src}}" alt="{{item.label}}" style="width: 100%; height: auto; display: block; border-radius: 14px; border: 1px solid #4a3f33">
+        <span style="font-family: system-ui, sans-serif; font-size: 14px; font-weight: 600; color: #f7f0e3">{{item.label}}</span>
+      </div>
+    </sc-for>
   </div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":640}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":780}}'>
 class Component extends DCLogic {
   renderVals() {
-    return {};
+    const names = [
+      ['street-food', 'Bakery'], ['bank', 'First District Bank'], ['electronics-upgraded', 'Arcane Workshop'],
+      ['flower-stall-upgraded', 'Alchemy Lab'], ['bookshop-upgraded', 'Grand Library'], ['spectator-hall', 'Theater Hall'],
+    ];
+    return { items: names.map(([f, label]) => ({ src: 'interior/' + f + '.svg', label })) };
   }
 }
 </script>
