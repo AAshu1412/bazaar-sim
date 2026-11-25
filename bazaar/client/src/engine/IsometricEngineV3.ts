@@ -1,6 +1,7 @@
 import * as PIXI from "pixi.js";
 import { Viewport } from "pixi-viewport";
 import { BUILDING_SPRITES } from "./buildingRegistry";
+import { TOWN, GRID as TOWN_GRID, type Lot, type TileKind } from "./townLayout";
 import { GridPathfinder, Point } from "./pathfinding";
 import { sfx } from "../audio/sfx";
 
@@ -55,22 +56,10 @@ export interface CustomerNPC {
   exitGate: Point;
 }
 
-const FILLER_INNER = [
-{ gx: 6, gy: 3, file: "/assets/exterior/blacksmith-forge.png" },
-{ gx: 21, gy: 3, file: "/assets/exterior/weavers-workshop.png" },
-{ gx: 6, gy: 24, file: "/assets/exterior/potters-workshop.png" },
-{ gx: 21, gy: 24, file: "/assets/exterior/tannery.png" },
-  ];
-const FILLER_OUTER = [
-  { gx: 3, gy: 3, file: "/assets/exterior/sacred-grove.png" },
-  { gx: 24, gy: 3, file: "/assets/exterior/mill-house.png" },
-  { gx: 3, gy: 24, file: "/assets/exterior/stable-horse-market.png" },
-  { gx: 24, gy: 24, file: "/assets/exterior/dairy-barn.png" },
-  { gx: 13, gy: 4, file: "/assets/exterior/farmhouse-cottage.png" },
-  { gx: 14, gy: 23, file: "/assets/exterior/apiary-beekeeper.png" },
-  { gx: 4, gy: 14, file: "/assets/exterior/shrine-chapel.png" },
-  { gx: 23, gy: 13, file: "/assets/exterior/merchants-house.png" },
-];
+/** buildings are drawn 302x256 around a footprint centred at (151,200); 0.85 makes their footprint fill a 2x2 lot */
+const SPRITE_SCALE = 0.78;
+const SPRITE_ANCHOR_Y = 200 / 256;
+const hash = (x: number, y: number, s = 0) => (((x * 73856093) ^ (y * 19349663) ^ ((s + 1) * 83492791)) >>> 0) % 1000 / 1000;
 
 export class IsometricEngineV3 {
   public app: PIXI.Application | null = null;
@@ -164,7 +153,7 @@ export class IsometricEngineV3 {
     // Place landmarks, plots & perimeter
     this.placeLandmarks();
     this.place20Plots();
-    this.placePerimeterFiller();
+    this.placeScenery();
 
     // Center viewport on player's corner shop
     this.focusPlayerPlot();
@@ -209,87 +198,120 @@ export class IsometricEngineV3 {
   private async preloadTextures() {
     const allUrls = new Set<string>();
 
-    Object.values(BUILDING_SPRITES.businesses).forEach((b) => {
-      allUrls.add(b.base);
-      allUrls.add(b.upgraded);
+    Object.values(BUILDING_SPRITES.businesses).forEach((bz) => {
+      allUrls.add(bz.base);
+      allUrls.add(bz.upgraded);
     });
+    allUrls.add("/assets/exterior/city-gate.png");
+    allUrls.add("/assets/exterior/city-gate-ew.png");
+    TOWN.lots.forEach((l) => allUrls.add(`/assets/${l.folder}/${l.sprite}.png`));
+    TOWN.props.forEach((pr) => allUrls.add(`/assets/scenery/${pr.sprite}.png`));
+    const tileSets: Record<string, number> = { grass: 4, road: 3, sidewalk: 3, plaza: 2, dirt: 2, field: 2 };
+    for (const [k, n] of Object.entries(tileSets)) for (let v = 0; v < n; v++) allUrls.add(`/assets/tiles/${k}${v}.png`);
 
-    allUrls.add(BUILDING_SPRITES.landmarks.bank.sprite);
-    allUrls.add(BUILDING_SPRITES.landmarks.townHall.sprite);
-    allUrls.add(BUILDING_SPRITES.landmarks.intelGuild.sprite);
-    allUrls.add(BUILDING_SPRITES.landmarks.managerOffice.sprite);
-    allUrls.add(BUILDING_SPRITES.landmarks.spectatorHall.sprite);
-    allUrls.add(BUILDING_SPRITES.landmarks.uncleRavi.sprite);
-    allUrls.add(BUILDING_SPRITES.landmarks.cityGate);
-    [...FILLER_INNER, ...FILLER_OUTER].forEach((f) => allUrls.add(f.file));
-
-    for (const url of allUrls) {
-      try {
-        const tex = await PIXI.Assets.load(url);
-        if (tex && tex.source) {
-          tex.source.scaleMode = "nearest";
+    await Promise.all(
+      [...allUrls].map(async (url) => {
+        try {
+          const tex = await PIXI.Assets.load(url);
+          if (tex && tex.source) tex.source.scaleMode = url.includes("/tiles/") ? "linear" : "nearest";
+        } catch (err) {
+          console.warn("Preload warning:", url, err);
         }
-      } catch (err) {
-        console.warn("Preload warning:", url, err);
-      }
-    }
+      })
+    );
+  }
+
+  private tileVariant(kind: TileKind, x: number, y: number): number {
+    const h = hash(x, y, 1);
+    if (kind === "grass") return ((x + y) % 2) * 2 + (h < 0.5 ? 0 : 1);
+    if (kind === "road") return Math.floor(h * 3);
+    if (kind === "sidewalk") return Math.floor(h * 3);
+    if (kind === "plaza") return x >= 13 && x <= 14 && y >= 12 && y <= 15 ? 1 : 0;
+    return Math.floor(h * 2);
+  }
+
+  /** point on the continuous grid (tile (x,y) spans x..x+1, y..y+1) */
+  private gp(gx: number, gy: number): [number, number] {
+    const i = this.toIso(gx, gy);
+    return [i.x, i.y];
   }
 
   /**
-   * 28x28 Isometric Terrain (Roads, Sidewalks, Grass Meadow)
+   * Planned town ground: tile sprites (grass, cobbled road, sidewalk, plaza, fields) with curbs,
+   * lane markings and crosswalks drawn on top.
    */
   private buildTerrain() {
-    const g = new PIXI.Graphics();
-
-    for (let y = 0; y < this.GRID_SIZE; y++) {
-      for (let x = 0; x < this.GRID_SIZE; x++) {
+    const tiles = TOWN.tiles;
+    for (let y = 0; y < TOWN_GRID; y++) {
+      for (let x = 0; x < TOWN_GRID; x++) {
+        const kind = tiles[y][x];
+        const tex = PIXI.Assets.get(`/assets/tiles/${kind}${this.tileVariant(kind, x, y)}.png`);
+        const sp = new PIXI.Sprite(tex);
         const iso = this.toIso(x, y);
+        sp.anchor.set(0.5, 0);
+        sp.position.set(iso.x, iso.y);
+        this.groundLayer.addChild(sp);
+        this.pathfinder.setTile(x, y, TOWN.walk[y][x]);
+      }
+    }
 
-        // 4 Main Streets layout on 28x28:
-        // Wide 2-tile road along x=13..14 and y=13..14
-        const isRoadX = x === 13 || x === 14;
-        const isRoadY = y === 13 || y === 14;
-        const isRoad = isRoadX || isRoadY;
+    const g = new PIXI.Graphics();
+    const line = (a: [number, number], b: [number, number], width: number, color: number, alpha: number) => {
+      g.moveTo(a[0], a[1]);
+      g.lineTo(b[0], b[1]);
+      g.stroke({ width, color, alpha });
+    };
+    const quad = (x0: number, y0: number, x1: number, y1: number, color: number, alpha: number) => {
+      const pts = [this.gp(x0, y0), this.gp(x1, y0), this.gp(x1, y1), this.gp(x0, y1)];
+      g.poly(pts.flat());
+      g.fill({ color, alpha });
+    };
+    const isRoadish = (x: number, y: number) => {
+      if (x < 0 || y < 0 || x >= TOWN_GRID || y >= TOWN_GRID) return true;
+      const k = tiles[y][x];
+      return k === "road" || k === "plaza";
+    };
 
-        // Sidewalks bordering road
-        const isSidewalk = (x === 12 || x === 15) || (y === 12 || y === 15);
-
-        let color = ((x + y) % 2 === 0) ? 0x3f6e3a : 0x4a7c44; // Meadow grass
-        let tileType = 0; // blocked
-
-        if (isRoad) {
-          color = (x === 13 && y === 13) ? 0x4f46e5 : 0x5a544d; // Cobblestone road
-          tileType = 1; // walkable road
-        } else if (isSidewalk) {
-          color = 0x9c9384; // Flagstone sidewalk
-          tileType = 2; // walkable sidewalk
-        }
-
-        this.pathfinder.setTile(x, y, tileType);
-
-        // Draw diamond isometric tile
-        g.poly([
-          iso.x, iso.y,
-          iso.x + this.TILE_W / 2, iso.y + this.TILE_H / 2,
-          iso.x, iso.y + this.TILE_H,
-          iso.x - this.TILE_W / 2, iso.y + this.TILE_H / 2,
-        ]);
-        g.fill({ color });
-        g.stroke({ width: 0.5, color: isRoad ? 0x3e3832 : 0x2d5029, alpha: 0.6 });
-
-        // Boulevard Golden road inlays
-        if (isRoadX && isRoadY) {
-          g.poly([
-            iso.x - 4, iso.y + this.TILE_H / 2 - 2,
-            iso.x + 4, iso.y + this.TILE_H / 2 - 2,
-            iso.x + 4, iso.y + this.TILE_H / 2 + 2,
-            iso.x - 4, iso.y + this.TILE_H / 2 + 2,
-          ]);
-          g.fill({ color: 0xf59e0b, alpha: 0.8 });
+    // curbs where the road meets sidewalk / grass
+    for (let y = 0; y < TOWN_GRID; y++) {
+      for (let x = 0; x < TOWN_GRID; x++) {
+        if (tiles[y][x] !== "road") continue;
+        const edges: [number, number, [number, number], [number, number]][] = [
+          [1, 0, this.gp(x + 1, y), this.gp(x + 1, y + 1)],
+          [-1, 0, this.gp(x, y), this.gp(x, y + 1)],
+          [0, 1, this.gp(x, y + 1), this.gp(x + 1, y + 1)],
+          [0, -1, this.gp(x, y), this.gp(x + 1, y)],
+        ];
+        for (const [dx, dy, a, b] of edges) {
+          if (isRoadish(x + dx, y + dy)) continue;
+          line(a, b, 3.2, 0xd2cab8, 0.95);
+          line([a[0], a[1] + 1.8], [b[0], b[1] + 1.8], 1.2, 0x1f1812, 0.45);
         }
       }
     }
 
+    // dashed centre line between the two avenue lanes (skip the plaza)
+    for (let t = 0; t < TOWN_GRID; t++) {
+      if (t >= 11 && t <= 16) continue;
+      line(this.gp(14, t + 0.25), this.gp(14, t + 0.7), 2.2, 0xf0dc8c, 0.8);
+      line(this.gp(t + 0.25, 14), this.gp(t + 0.7, 14), 2.2, 0xf0dc8c, 0.8);
+    }
+    // ring road centre dashes
+    for (let t = 5; t < 23; t++) {
+      if (t === 13) { t++; continue; }
+      line(this.gp(4.5, t + 0.3), this.gp(4.5, t + 0.7), 1.6, 0xd8cfa8, 0.55);
+      line(this.gp(23.5, t + 0.3), this.gp(23.5, t + 0.7), 1.6, 0xd8cfa8, 0.55);
+      line(this.gp(t + 0.3, 4.5), this.gp(t + 0.7, 4.5), 1.6, 0xd8cfa8, 0.55);
+      line(this.gp(t + 0.3, 23.5), this.gp(t + 0.7, 23.5), 1.6, 0xd8cfa8, 0.55);
+    }
+    // zebra crossings on the four avenue approaches
+    for (let k = 0; k < 7; k++) {
+      const o = 13.1 + k * 0.3;
+      quad(o, 11.2, o + 0.14, 11.8, 0xf3efe4, 0.85);
+      quad(o, 16.2, o + 0.14, 16.8, 0xf3efe4, 0.85);
+      quad(11.2, o, 11.8, o + 0.14, 0xf3efe4, 0.85);
+      quad(16.2, o, 16.8, o + 0.14, 0xf3efe4, 0.85);
+    }
     this.groundLayer.addChild(g);
   }
 
@@ -297,27 +319,32 @@ export class IsometricEngineV3 {
    * Place Clickable Town Landmarks
    */
   private placeLandmarks() {
-    const list = [
-      { id: "bank", label: "Bank of Bazaar", modal: "bank", gx: 10, gy: 10, file: BUILDING_SPRITES.landmarks.bank.sprite },
-      { id: "townHall", label: "Town Hall & Auction", modal: "auction", gx: 17, gy: 10, file: BUILDING_SPRITES.landmarks.townHall.sprite },
-      { id: "intel", label: "Intel & Scouting", modal: "intel", gx: 10, gy: 17, file: BUILDING_SPRITES.landmarks.intelGuild.sprite },
-      { id: "manager", label: "Manager Office", modal: "manager", gx: 17, gy: 17, file: BUILDING_SPRITES.landmarks.managerOffice.sprite },
-      { id: "spectator", label: "Spectator Hall", modal: "spectator", gx: 6, gy: 13, file: BUILDING_SPRITES.landmarks.spectatorHall.sprite },
-      { id: "uncleRavi", label: "Uncle Ravi's Shop", modal: "uncleRavi", gx: 21, gy: 13, file: BUILDING_SPRITES.landmarks.uncleRavi.sprite },
-    ];
-
-    list.forEach((lm) => {
-      this.addBuildingSprite(lm.file, lm.gx, lm.gy, true, () => {
-        if (this.onLandmarkClick) this.onLandmarkClick(lm.modal);
+    const labels: Record<string, { modal: string; label: string }> = {
+      bank: { modal: "bank", label: "Bank of Bazaar" },
+      townHall: { modal: "auction", label: "Town Hall & Auction" },
+      intel: { modal: "intel", label: "Intel & Scouting" },
+      manager: { modal: "manager", label: "Manager Office" },
+      spectator: { modal: "spectator", label: "Spectator Hall" },
+      uncleRavi: { modal: "uncleRavi", label: "Uncle Ravi's Shop" },
+    };
+    TOWN.lots
+      .filter((l) => l.role === "landmark")
+      .forEach((lot) => {
+        const info = labels[lot.landmarkId!];
+        const c = this.addLotSprite(lot, true, () => {
+          if (this.onLandmarkClick) this.onLandmarkClick(info.modal);
+        });
+        this.landmarks.push({ id: lot.landmarkId!, label: info.label, modal: info.modal, gx: lot.gx, gy: lot.gy, container: c } as unknown as LandmarkInfo);
       });
-    });
 
-    // 4 Cardinal Entrance Gates
-    this.GATES.forEach((g) => {
-      this.addBuildingSprite(BUILDING_SPRITES.landmarks.cityGate, g.x, g.y, false);
-      // Ensure the gate road tile itself is walkable
-      this.pathfinder.setTile(g.x, g.y, 1);
-    });
+    // four gates on the avenue ends; arches face along the avenue
+    const gates: [string, number, number][] = [
+      ["city-gate", 13, 0],
+      ["city-gate-ew", 26, 13],
+      ["city-gate", 13, 26],
+      ["city-gate-ew", 0, 13],
+    ];
+    gates.forEach(([sprite, gx, gy]) => this.addLotSprite({ gx, gy, role: "outskirt", sprite, folder: "exterior" }, false, undefined, false));
   }
 
   /**
@@ -326,71 +353,53 @@ export class IsometricEngineV3 {
   private place20Plots() {
     this.plots = [];
 
-    // Verified entrance coordinates strictly on adjacent sidewalk/road tiles (x=12, 13, 14, 15 or y=12, 13, 14, 15)
-    const plotConfigs: {
-      gx: number;
-      gy: number;
-      tier: "Corner" | "MainStreet" | "SideStreet" | "Alley";
-      street: string;
-      entrance: Point;
-      ownerType: PlotOwnerType;
-      ownerName: string | null;
-      priceCents: number;
-      inventory: number;
-    }[] = [
-      // 4 Central Corner Plots (Plot 0 is the Player's Corner Shop)
-      { gx: 11, gy: 11, tier: "Corner", street: "MagicBlock Blvd", entrance: { x: 12, y: 12 }, ownerType: "player", ownerName: "You (Corner Roast)", priceCents: 300, inventory: 50 },
-      { gx: 16, gy: 11, tier: "Corner", street: "MagicBlock Blvd", entrance: { x: 15, y: 12 }, ownerType: "rivalHuman", ownerName: "Player 2 (Gourmet)", priceCents: 310, inventory: 45 },
-      { gx: 11, gy: 16, tier: "Corner", street: "MagicBlock Blvd", entrance: { x: 12, y: 15 }, ownerType: "bot", ownerName: "Undercutter Bot", priceCents: 290, inventory: 50 },
-      { gx: 16, gy: 16, tier: "Corner", street: "MagicBlock Blvd", entrance: { x: 15, y: 15 }, ownerType: "bot", ownerName: "Margin Hawk Bot", priceCents: 320, inventory: 50 },
-
-      // 6 Main Street Plots
-      { gx: 13, gy: 8, tier: "MainStreet", street: "Main Street", entrance: { x: 13, y: 12 }, ownerType: "bot", ownerName: "Value Balanced Bot", priceCents: 280, inventory: 40 },
-      { gx: 14, gy: 8, tier: "MainStreet", street: "Main Street", entrance: { x: 14, y: 12 }, ownerType: "unclaimed", ownerName: null, priceCents: 300, inventory: 0 },
-      { gx: 13, gy: 19, tier: "MainStreet", street: "Main Street", entrance: { x: 13, y: 15 }, ownerType: "bot", ownerName: "Scribe Guild AI", priceCents: 350, inventory: 35 },
-      { gx: 14, gy: 19, tier: "MainStreet", street: "Main Street", entrance: { x: 14, y: 15 }, ownerType: "unclaimed", ownerName: null, priceCents: 300, inventory: 0 },
-      { gx: 8, gy: 13, tier: "MainStreet", street: "Main Street", entrance: { x: 12, y: 13 }, ownerType: "bot", ownerName: "Apex Merchant", priceCents: 295, inventory: 60 },
-      { gx: 19, gy: 13, tier: "MainStreet", street: "Main Street", entrance: { x: 15, y: 13 }, ownerType: "unclaimed", ownerName: null, priceCents: 300, inventory: 0 },
-
-      // 6 Side Street Plots
-      { gx: 10, gy: 7, tier: "SideStreet", street: "Side Street", entrance: { x: 12, y: 12 }, ownerType: "unclaimed", ownerName: null, priceCents: 300, inventory: 0 },
-      { gx: 17, gy: 7, tier: "SideStreet", street: "Side Street", entrance: { x: 15, y: 12 }, ownerType: "bot", ownerName: "Clockwork Trader", priceCents: 420, inventory: 25 },
-      { gx: 10, gy: 20, tier: "SideStreet", street: "Side Street", entrance: { x: 12, y: 15 }, ownerType: "unclaimed", ownerName: null, priceCents: 300, inventory: 0 },
-      { gx: 17, gy: 20, tier: "SideStreet", street: "Side Street", entrance: { x: 15, y: 15 }, ownerType: "unclaimed", ownerName: null, priceCents: 300, inventory: 0 },
-      { gx: 7, gy: 10, tier: "SideStreet", street: "Side Street", entrance: { x: 12, y: 12 }, ownerType: "bot", ownerName: "Apothecary Bot", priceCents: 275, inventory: 30 },
-      { gx: 20, gy: 10, tier: "SideStreet", street: "Side Street", entrance: { x: 15, y: 12 }, ownerType: "unclaimed", ownerName: null, priceCents: 300, inventory: 0 },
-
-      // 4 Alley Plots
-      { gx: 7, gy: 17, tier: "Alley", street: "Alley", entrance: { x: 12, y: 15 }, ownerType: "unclaimed", ownerName: null, priceCents: 250, inventory: 0 },
-      { gx: 20, gy: 17, tier: "Alley", street: "Alley", entrance: { x: 15, y: 15 }, ownerType: "unclaimed", ownerName: null, priceCents: 250, inventory: 0 },
-      { gx: 6, gy: 7, tier: "Alley", street: "Alley", entrance: { x: 12, y: 12 }, ownerType: "unclaimed", ownerName: null, priceCents: 240, inventory: 0 },
-      { gx: 21, gy: 20, tier: "Alley", street: "Alley", entrance: { x: 15, y: 15 }, ownerType: "unclaimed", ownerName: null, priceCents: 240, inventory: 0 },
+    // owner / economy data in slot order: 4 corners, 6 main street, 6 side street, 4 alley (positions come from townLayout)
+    const owners: { ownerType: PlotOwnerType; ownerName: string | null; priceCents: number; inventory: number }[] = [
+      { ownerType: "player", ownerName: "You (Corner Roast)", priceCents: 300, inventory: 50 },
+      { ownerType: "rivalHuman", ownerName: "Player 2 (Gourmet)", priceCents: 310, inventory: 45 },
+      { ownerType: "bot", ownerName: "Undercutter Bot", priceCents: 290, inventory: 50 },
+      { ownerType: "bot", ownerName: "Margin Hawk Bot", priceCents: 320, inventory: 50 },
+      { ownerType: "bot", ownerName: "Value Balanced Bot", priceCents: 280, inventory: 40 },
+      { ownerType: "unclaimed", ownerName: null, priceCents: 300, inventory: 0 },
+      { ownerType: "bot", ownerName: "Scribe Guild AI", priceCents: 350, inventory: 35 },
+      { ownerType: "unclaimed", ownerName: null, priceCents: 300, inventory: 0 },
+      { ownerType: "bot", ownerName: "Apex Merchant", priceCents: 295, inventory: 60 },
+      { ownerType: "unclaimed", ownerName: null, priceCents: 300, inventory: 0 },
+      { ownerType: "unclaimed", ownerName: null, priceCents: 300, inventory: 0 },
+      { ownerType: "bot", ownerName: "Clockwork Trader", priceCents: 420, inventory: 25 },
+      { ownerType: "unclaimed", ownerName: null, priceCents: 300, inventory: 0 },
+      { ownerType: "unclaimed", ownerName: null, priceCents: 300, inventory: 0 },
+      { ownerType: "bot", ownerName: "Apothecary Bot", priceCents: 275, inventory: 30 },
+      { ownerType: "unclaimed", ownerName: null, priceCents: 300, inventory: 0 },
+      { ownerType: "unclaimed", ownerName: null, priceCents: 250, inventory: 0 },
+      { ownerType: "unclaimed", ownerName: null, priceCents: 250, inventory: 0 },
+      { ownerType: "unclaimed", ownerName: null, priceCents: 240, inventory: 0 },
+      { ownerType: "unclaimed", ownerName: null, priceCents: 240, inventory: 0 },
     ];
+    const streets: Record<string, string> = { Corner: "MagicBlock Blvd", MainStreet: "Main Street", SideStreet: "Side Street", Alley: "Alley" };
 
     const types = ["CoffeeCart", "StreetFood", "Electronics", "FlowerStall", "Bookshop"];
 
-    plotConfigs.forEach((p, id) => {
+    TOWN.plotSlots.forEach((slot, id) => {
+      const o = owners[id];
       const bType = types[id % types.length];
       const isUpgraded = id === 0 || id % 4 === 0;
       const bConfig = BUILDING_SPRITES.businesses[bType as keyof typeof BUILDING_SPRITES.businesses] || BUILDING_SPRITES.businesses.CoffeeCart;
-      const spritePath = p.ownerType === "unclaimed" ? "/assets/exterior/carpenters-yard.png" : (isUpgraded ? bConfig.upgraded : bConfig.base);
-
-      // Verify entrance is walkable on the grid
-      this.pathfinder.setTile(p.entrance.x, p.entrance.y, 2);
+      const spritePath = o.ownerType === "unclaimed" ? BUILDING_SPRITES.businesses.Vacant.base : (isUpgraded ? bConfig.upgraded : bConfig.base);
 
       const plotInfo: PlotInfo = {
         id,
-        streetName: p.street,
-        tier: p.tier,
-        gx: p.gx,
-        gy: p.gy,
-        entrance: p.entrance,
-        owner: p.ownerName,
-        ownerType: p.ownerType,
+        streetName: streets[slot.tier],
+        tier: slot.tier,
+        gx: slot.gx,
+        gy: slot.gy,
+        entrance: slot.entrance,
+        owner: o.ownerName,
+        ownerType: o.ownerType,
         businessType: bType,
         isUpgraded,
-        priceCents: p.priceCents,
-        inventory: p.inventory,
+        priceCents: o.priceCents,
+        inventory: o.inventory,
         maxInventory: 100,
         isMarginCalled: false,
         customersServed: 0,
@@ -411,13 +420,6 @@ export class IsometricEngineV3 {
     container.x = iso.x;
     container.y = iso.y;
 
-    // Block footprint (2x2)
-    for (let dy = 0; dy <= 1; dy++) {
-      for (let dx = 0; dx <= 1; dx++) {
-        this.pathfinder.setTile(plot.gx + dx, plot.gy + dy, 0);
-      }
-    }
-
     // 1. Ground Halo (Distinct Visual Ownership Marker)
     const halo = new PIXI.Graphics();
     plot.haloGraphic = halo;
@@ -425,11 +427,6 @@ export class IsometricEngineV3 {
     container.addChild(halo);
 
     // 2. Soft building shadow
-    const shadow = new PIXI.Graphics();
-    shadow.ellipse(0, 16, 44, 22);
-    shadow.fill({ color: 0x000000, alpha: 0.38 });
-    container.addChild(shadow);
-
     // 3. Building Sprite
     let sprite: PIXI.Sprite;
     try {
@@ -437,14 +434,15 @@ export class IsometricEngineV3 {
     } catch (_) {
       sprite = new PIXI.Sprite();
     }
-    sprite.anchor.set(0.5, 0.78);
-    sprite.scale.set(0.58);
+    sprite.anchor.set(0.5, SPRITE_ANCHOR_Y);
+    sprite.scale.set(SPRITE_SCALE);
+    sprite.y = this.TILE_H; // lot centre
     plot.sprite = sprite;
     container.addChild(sprite);
 
     // 4. Floating Overhead Pill (Ownership, Price & Stock)
     const pill = new PIXI.Container();
-    pill.y = -68;
+    pill.y = -86;
     plot.overheadPill = pill;
     this.buildOverheadPill(plot);
     container.addChild(pill);
@@ -457,7 +455,7 @@ export class IsometricEngineV3 {
       if (this.onPlotClick) this.onPlotClick(plot);
     });
 
-    container.zIndex = iso.y;
+    container.zIndex = iso.y + this.TILE_H;
     this.entitiesLayer.addChild(container);
 
     return container;
@@ -470,22 +468,22 @@ export class IsometricEngineV3 {
 
     if (plot.ownerType === "player") {
       // Emerald / Gold Glowing Halo
-      g.ellipse(0, 16, 52, 26);
+      g.ellipse(0, this.TILE_H, 84, 42);
       g.stroke({ width: 3, color: 0x10b981, alpha: 0.95 });
       g.fill({ color: 0xf59e0b, alpha: 0.16 });
     } else if (plot.ownerType === "rivalHuman") {
       // Crimson / Ruby Halo
-      g.ellipse(0, 16, 48, 24);
+      g.ellipse(0, this.TILE_H, 80, 40);
       g.stroke({ width: 2.5, color: 0xef4444, alpha: 0.85 });
       g.fill({ color: 0xef4444, alpha: 0.12 });
     } else if (plot.ownerType === "bot") {
       // Sleek Indigo Halo
-      g.ellipse(0, 16, 46, 23);
+      g.ellipse(0, this.TILE_H, 78, 39);
       g.stroke({ width: 2, color: 0x6366f1, alpha: 0.75 });
       g.fill({ color: 0x6366f1, alpha: 0.08 });
     } else {
       // Unclaimed / For Lease (Cobblestone Dashed Border)
-      g.ellipse(0, 16, 44, 22);
+      g.ellipse(0, this.TILE_H, 76, 38);
       g.stroke({ width: 1.5, color: 0xd4a359, alpha: 0.5 });
     }
   }
@@ -572,44 +570,48 @@ export class IsometricEngineV3 {
     pill.addChild(stockFill);
   }
 
-  private placePerimeterFiller() {
-    FILLER_INNER.forEach((ic) => this.addBuildingSprite(ic.file, ic.gx, ic.gy, false));
+  /** outskirts, accents, parks, fountain, street lamps and trees */
+  private placeScenery() {
+    TOWN.lots
+      .filter((l) => l.role !== "landmark" && l.role !== "plot")
+      .forEach((l) => this.addLotSprite(l, false));
 
-    FILLER_OUTER.forEach((oc) => this.addBuildingSprite(oc.file, oc.gx, oc.gy, false));
+    TOWN.props.forEach((pr) => {
+      const container = new PIXI.Container();
+      const iso = this.toIso(pr.gx, pr.gy);
+      container.x = iso.x;
+      container.y = iso.y;
+      let sprite: PIXI.Sprite;
+      try {
+        sprite = PIXI.Sprite.from(`/assets/scenery/${pr.sprite}.png`);
+      } catch (_) {
+        sprite = new PIXI.Sprite();
+      }
+      sprite.anchor.set(0.5, SPRITE_ANCHOR_Y);
+      sprite.scale.set(pr.scale);
+      sprite.y = this.TILE_H / 2; // 1x1 tile centre
+      container.addChild(sprite);
+      container.zIndex = iso.y + this.TILE_H / 2;
+      this.entitiesLayer.addChild(container);
+    });
   }
 
-  private addBuildingSprite(
-    url: string,
-    gx: number,
-    gy: number,
-    interactive: boolean,
-    onClick?: () => void
-  ): PIXI.Container {
+  /** 2x2 sprite centred on its lot; landmarks are clickable with a hover ring */
+  private addLotSprite(lot: Pick<Lot, "gx" | "gy" | "sprite" | "folder" | "role">, interactive: boolean, onClick?: () => void, block = true): PIXI.Container {
     const container = new PIXI.Container();
-    const iso = this.toIso(gx, gy);
+    const iso = this.toIso(lot.gx, lot.gy);
     container.x = iso.x;
     container.y = iso.y;
 
-    // Footprint (2x2)
-    for (let dy = 0; dy <= 1; dy++) {
-      for (let dx = 0; dx <= 1; dx++) {
-        this.pathfinder.setTile(gx + dx, gy + dy, 0);
-      }
-    }
-
-    const shadow = new PIXI.Graphics();
-    shadow.ellipse(0, 16, 44, 22);
-    shadow.fill({ color: 0x000000, alpha: 0.38 });
-    container.addChild(shadow);
-
     let sprite: PIXI.Sprite;
     try {
-      sprite = PIXI.Sprite.from(url);
+      sprite = PIXI.Sprite.from(`/assets/${lot.folder}/${lot.sprite}.png`);
     } catch (_) {
       sprite = new PIXI.Sprite();
     }
-    sprite.anchor.set(0.5, 0.78);
-    sprite.scale.set(0.58);
+    sprite.anchor.set(0.5, SPRITE_ANCHOR_Y);
+    sprite.scale.set(SPRITE_SCALE);
+    sprite.y = this.TILE_H;
     container.addChild(sprite);
 
     if (interactive) {
@@ -617,11 +619,11 @@ export class IsometricEngineV3 {
       container.cursor = "pointer";
 
       const highlight = new PIXI.Graphics();
-      highlight.ellipse(0, 16, 48, 24);
+      highlight.ellipse(0, this.TILE_H, 84, 42);
       highlight.stroke({ width: 2.5, color: 0xf59e0b, alpha: 0.9 });
       highlight.fill({ color: 0xf59e0b, alpha: 0.12 });
       highlight.visible = false;
-      container.addChild(highlight);
+      container.addChildAt(highlight, 0);
 
       container.on("pointerover", () => (highlight.visible = true));
       container.on("pointerout", () => (highlight.visible = false));
@@ -631,9 +633,8 @@ export class IsometricEngineV3 {
       });
     }
 
-    container.zIndex = iso.y;
+    container.zIndex = iso.y + this.TILE_H;
     this.entitiesLayer.addChild(container);
-
     return container;
   }
 
@@ -680,7 +681,7 @@ export class IsometricEngineV3 {
     const container = new PIXI.Container();
     const iso = this.toIso(spawnGate.x, spawnGate.y);
     container.x = iso.x;
-    container.y = iso.y;
+    container.y = iso.y + this.TILE_H / 2;
 
     // Stylized Pixel NPC
     const g = new PIXI.Graphics();
@@ -752,7 +753,7 @@ export class IsometricEngineV3 {
 
         const iso = this.toIso(gx, gy);
         npc.container.x = iso.x;
-        npc.container.y = iso.y + Math.sin(npc.stepT * Math.PI) * 2;
+        npc.container.y = iso.y + this.TILE_H / 2 + Math.sin(npc.stepT * Math.PI) * 2;
         npc.container.zIndex = iso.y + 10;
       } else if (npc.state === "PURCHASING") {
         npc.pauseTimer -= delta;
@@ -817,7 +818,7 @@ export class IsometricEngineV3 {
 
         const iso = this.toIso(gx, gy);
         npc.container.x = iso.x;
-        npc.container.y = iso.y + Math.sin(npc.stepT * Math.PI) * 2;
+        npc.container.y = iso.y + this.TILE_H / 2 + Math.sin(npc.stepT * Math.PI) * 2;
         npc.container.zIndex = iso.y + 10;
       }
     }
@@ -864,7 +865,7 @@ export class IsometricEngineV3 {
     if (!playerPlot) return;
     const iso = this.toIso(playerPlot.gx, playerPlot.gy);
     this.viewport.animate({
-      position: { x: iso.x, y: iso.y },
+      position: { x: iso.x, y: iso.y + this.TILE_H },
       scale: 1.15,
       time: 500,
     });
@@ -875,7 +876,7 @@ export class IsometricEngineV3 {
     if (plot && this.viewport) {
       const iso = this.toIso(plot.gx, plot.gy);
       this.viewport.animate({
-        position: { x: iso.x, y: iso.y },
+        position: { x: iso.x, y: iso.y + this.TILE_H },
         scale: 1.25,
         time: 500,
       });

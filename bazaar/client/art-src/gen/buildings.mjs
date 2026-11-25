@@ -112,6 +112,12 @@ export const BUILDINGS = {
     volume(S, { x0: 30, y0: 22, W: 38, D: 38, H: 34, z0: 90, wall: { k: "stone", c: "#d2cbb8", plinth: "#8a8272" }, roof: { t: "hip", rh: 30, ov: 3, style: "copper", c: "#4f8f7a", finial: true }, L: { items: [win(11, 8, { w: 14, h: 20, arch: true, glow: "warm" })] }, R: { items: [win(11, 8, { w: 14, h: 20, arch: true, glow: "warm" })] } });
     portico(S, 100, 74, 30, 30, "#ece6d6"); lamppost(S, 110, 100, 42);
   },
+  "vacant-lot": (S) => {
+    ground(S, "dirt", { force: true });
+    fence(S, 4, 96, 44, 96, "#a9763f", 4); fence(S, 60, 96, 96, 96, "#a9763f", 4); fence(S, 96, 4, 96, 40, "#a9763f", 4); fence(S, 96, 56, 96, 96, "#a9763f", 4);
+    signpost(S, 50, 88, "#c0392b"); stoneBlock(S, 20, 24, 10, 8, 6, "#9a968a"); stoneBlock(S, 70, 60, 8, 8, 5, "#a4a094"); bush(S, 14, 70, 0.7, "#6a8a3a"); bush(S, 78, 16, 0.6, "#7a9a44");
+    box(S, 70, 24, 0, 12, 10, 8, "#a9763f", { planks: 2 });
+  },
   "carpenters-yard": (S) => {
     ground(S, "dirt");
     volume(S, house({ x0: 4, y0: 6, W: 46, D: 40, H: 34, wall: { k: "plank", c: "#b08a5c", plinth: "#6f665a" }, roof: gable("#8a6a46", { style: "tile", rh: 24, ov: 5 }),
@@ -197,6 +203,16 @@ export const BUILDINGS = {
     volume(S, wall); battlements(S, wall, 8);
     volume(S, { x0: 74, y0: 24, W: 34, D: 44, H: 100, wall: { k: "stone", c: "#c4bdae", plinth: "#7d766a" }, roof: { t: "hip", rh: 42, ov: 4, style: "slate", c: "#5a6478", finial: true }, L: { items: [win(11, 24, { w: 12, h: 24, arch: true, glow: "dark" })] }, R: { items: [win(14, 26, { w: 12, h: 22, glow: "dark" })] } });
     lamppost(S, 20, 84, 40); lamppost(S, 90, 84, 40);
+  },
+
+  "city-gate-ew": (S) => {
+    ground(S, "stone");
+    const wall = house({ x0: 30, y0: 0, W: 32, D: 100, H: 62, wall: { k: "stone", c: "#bdb6a8", plinth: "#7d766a" }, roof: { t: "flat", c: "#9a9488", parapet: 8 },
+      L: { items: [win(8, 16, { w: 14, h: 24, arch: true, glow: "dark" })] },
+      R: { items: [{ t: "door", u: 33, w: 34, h: 46, c: "#2a2018", stone: "#d4cdbd" }, banner(8, 8, "star", { c: "#a8322d" }), banner(78, 8, "star", { c: "#a8322d" })] } });
+    const tower = (y0) => ({ x0: 22, y0, W: 46, D: 34, H: 100, wall: { k: "stone", c: "#c4bdae", plinth: "#7d766a" }, roof: { t: "hip", rh: 42, ov: 4, style: "slate", c: "#5a6478", finial: true }, L: { items: [win(16, 24, { w: 12, h: 24, arch: true, glow: "dark" })] }, R: { items: [win(11, 26, { w: 12, h: 22, glow: "dark" })] } });
+    volume(S, tower(-6)); volume(S, wall); battlements(S, wall, 8); volume(S, tower(72));
+    lamppost(S, 94, 20, 40); lamppost(S, 94, 92, 40);
   },
 
   // ======================= town accents =======================

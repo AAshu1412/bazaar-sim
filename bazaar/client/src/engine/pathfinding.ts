@@ -50,7 +50,7 @@ export class GridPathfinder {
       }
     }
     // Default fallback to center crossroads
-    return { x: 13, y: 13 };
+    return { x: 13, y: 11 };
   }
 
   /**

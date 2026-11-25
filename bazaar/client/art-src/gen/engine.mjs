@@ -40,7 +40,10 @@ export class Scene {
 
 // ---------- ground ----------
 const GROUNDS = { stone: ["#9b9a92", "#b4b2a8"], grass: ["#5f8a3a", "#74a047"], dirt: ["#a88a62", "#bda076"], cobble: ["#8d8a84", "#a6a39b"] };
-export function ground(S, kind = "stone") {
+export const FLAGS = { noGround: true };
+export function ground(S, kind = "stone", opts = {}) {
+  S.groundKind = kind;
+  if (FLAGS.noGround && !opts.force) return;
   const [edge, top] = GROUNDS[kind], lo = -8, hi = 104, span = hi - lo;
   const c = [P(lo, lo), P(hi, lo), P(hi, hi), P(lo, hi)];
   const rim = c.map((p) => [p[0], p[1] + 5]).reverse();

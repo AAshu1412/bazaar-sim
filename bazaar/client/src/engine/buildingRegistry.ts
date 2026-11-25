@@ -30,8 +30,8 @@ export const BUILDING_SPRITES = {
       label: "Scribe & Grand Library",
     },
     Vacant: {
-      base: "/assets/exterior/carpenters-yard.png",
-      upgraded: "/assets/exterior/carpenters-yard.png",
+      base: "/assets/exterior/vacant-lot.png",
+      upgraded: "/assets/exterior/vacant-lot.png",
       label: "Available Plot (Auction)",
     },
   },
