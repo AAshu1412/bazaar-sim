@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import {
   Volume2,
   VolumeX,
@@ -38,7 +39,7 @@ import { MultiplayerLobbyModal } from "./components/MultiplayerLobbyModal";
 import { StatusBoardModal } from "./components/StatusBoardModal";
 import { useGameStore } from "./store/gameStore";
 import { sfx } from "./audio/sfx";
-import { onChainService } from "./solana/onChainService";
+import { gameChain, type TxLog } from "./solana/gameChain";
 import { fetchSolPrice } from "./solana/pyth";
 import { WalletChip } from "./components/WalletChip";
 
@@ -93,6 +94,7 @@ export const App: React.FC = () => {
     const engine = new IsometricEngineV3();
     engine.init(containerRef.current);
     engineRef.current = engine;
+    if (import.meta.env.DEV) (window as unknown as { __engine: IsometricEngineV3 }).__engine = engine; // debugging handle
 
     // Connect Plot Click to slide-over inspector
     engine.onPlotClick = (plot: PlotInfo) => {
@@ -116,16 +118,19 @@ export const App: React.FC = () => {
       if (plotId === 0) {
         setCustomersServedToday((prev) => prev + 1);
         setRevenueTodayCents((prev) => prev + priceCents);
-        setCashGd((prev) => prev + Math.round(priceCents / 100));
-        setNetWorthGd((prev) => prev + Math.round(priceCents / 100));
-
-        addLedgerItem({
-          type: "TICK",
-          message: `Customer served at Corner Roast: +$${(priceCents / 100).toFixed(2)}`,
-          signature: "7aM9...retailSale",
-          latencyMs: 18,
-          network: "ER",
-        });
+        if (gameChain.live) {
+          gameChain.recordSale(); // paid on-chain from the town treasury in small batches
+        } else {
+          setCashGd((prev) => prev + Math.round(priceCents / 100));
+          setNetWorthGd((prev) => prev + Math.round(priceCents / 100));
+          addLedgerItem({
+            type: "TICK",
+            message: `Customer served at Corner Roast: +$${(priceCents / 100).toFixed(2)} [simulated: connect a wallet to play on-chain]`,
+            signature: "sim-sale",
+            latencyMs: 18,
+            network: "ER",
+          });
+        }
       }
     };
 
@@ -222,22 +227,39 @@ export const App: React.FC = () => {
     sfx.playChing();
   };
 
-  const logChain = (type: "PRICE" | "TICK") => (message: string, r: { signature: string; latencyMs: number; isLive: boolean }) =>
-    addLedgerItem({
-      type,
-      message: r.isLive ? message : `${message} [simulated]`,
-      signature: r.signature,
-      latencyMs: r.latencyMs,
-      network: "Base",
-    });
+  const logChain = (type: "PRICE" | "TICK" | "AUCTION" | "VRF" | "SETTLE", r: TxLog) =>
+    addLedgerItem({ type, message: r.message, signature: r.signature, latencyMs: r.latencyMs, network: "Base" });
 
-  // Fund burner + create season/plot/business on devnet (idempotent)
+  // Real wallet → one session approval → everything else is signed by the session key
+  const { publicKey, signTransaction, connected } = useWallet();
+  const signRef = useRef(signTransaction);
+  signRef.current = signTransaction;
+  const walletKey = publicKey?.toBase58();
   useEffect(() => {
-    onChainService.bootstrap(logChain("TICK"));
-    // while unfunded, re-check every 10s so the game goes live as soon as the wallet gets SOL
-    const id = setInterval(() => onChainService.poll(logChain("TICK")), 10_000);
+    if (connected && publicKey && signRef.current) {
+      gameChain.connect({ publicKey, signTransaction: (tx) => signRef.current!(tx) }, logChain);
+    } else {
+      gameChain.disconnect();
+    }
+  }, [connected, walletKey]);
+  const chain = useSyncExternalStore(gameChain.subscribe, gameChain.getState);
+  const chainLive = chain.phase === "live";
+  const displayCash = chainLive ? chain.gd : cashGd;
+  const displayNetWorth = chainLive ? Math.round(chain.gd + 5000 + chain.inventory * 1.5) : netWorthGd;
+
+  // mirror on-chain stock and price into the map (sold out on-chain = sold out in town)
+  useEffect(() => {
+    if (!chainLive) return;
+    const sync = () => {
+      const c = gameChain.getState();
+      const patch = { inventory: Math.max(0, c.inventory - c.pendingSales), priceCents: c.priceCents, isUpgraded: c.upgrades > 0 };
+      engineRef.current?.updatePlotData(0, patch);
+      setSelectedPlot((sp) => (sp && sp.id === 0 && (sp.inventory !== patch.inventory || sp.priceCents !== patch.priceCents || sp.isUpgraded !== patch.isUpgraded) ? { ...sp, ...patch } : sp));
+    };
+    sync();
+    const id = setInterval(sync, 1500); // also covers the engine finishing its async load after the first chain update
     return () => clearInterval(id);
-  }, []);
+  }, [chainLive]);
 
   // Live Pyth SOL/USD every 15s; push the signal on-chain every 5 min
   useEffect(() => {
@@ -247,9 +269,9 @@ export const App: React.FC = () => {
         const p = await fetchSolPrice();
         setSolPrice(p.price);
         setSolLiveChange(Number(p.change1hPct.toFixed(2)));
-        if (Date.now() - lastCrank > 300_000) {
+        if (gameChain.live && Date.now() - lastCrank > 300_000) {
           lastCrank = Date.now();
-          onChainService.crankMarketSignals(logChain("TICK"));
+          gameChain.crankSignals();
         }
       } catch (e) {
         console.warn("Pyth fetch failed", e);
@@ -268,9 +290,7 @@ export const App: React.FC = () => {
         setSelectedPlot({ ...selectedPlot, priceCents: newPriceCents });
       }
     }
-    if (plotId === 0) {
-      onChainService.setPriceOnChain(newPriceCents, logChain("PRICE"));
-    }
+    if (plotId === 0) gameChain.setPrice(newPriceCents);
     sfx.playPriceClick();
   };
 
@@ -343,7 +363,7 @@ export const App: React.FC = () => {
             <div>
               <span className="text-[10px] text-gray-400 block font-sans">Net Worth</span>
               <span className="font-mono font-black text-sm text-white">
-                {netWorthGd.toLocaleString()} <span className="text-[10px] text-amber-400">GD</span>
+                {displayNetWorth.toLocaleString()} <span className="text-[10px] text-amber-400">GD</span>
               </span>
             </div>
           </div>
@@ -355,7 +375,7 @@ export const App: React.FC = () => {
             <div>
               <span className="text-[10px] text-gray-400 block font-sans">Cash Reserve</span>
               <span className="font-mono font-black text-sm text-emerald-400">
-                {cashGd.toLocaleString()} <span className="text-[10px]">GD</span>
+                {displayCash.toLocaleString(undefined, { maximumFractionDigits: 2 })} <span className="text-[10px]">GD</span>
               </span>
             </div>
           </div>
@@ -559,6 +579,9 @@ export const App: React.FC = () => {
       {selectedPlot && (
         <PlotInspector
           plot={selectedPlot}
+          chain={chainLive ? { gd: chain.gd, inventory: chain.inventory, upgrades: chain.upgrades } : undefined}
+          onRestock={() => gameChain.restock(20).catch((e) => addLedgerItem({ type: "TICK", message: `Restock failed: ${String(e.message ?? e).slice(0, 80)}`, signature: "sim-restock", latencyMs: 0, network: "Base" }))}
+          onUpgrade={() => gameChain.buyUpgrade(1, "Signage (+15% traffic)").catch((e) => addLedgerItem({ type: "TICK", message: `Upgrade failed: ${String(e.message ?? e).slice(0, 80)}`, signature: "sim-upgrade", latencyMs: 0, network: "Base" }))}
           onClose={() => setSelectedPlot(null)}
           onReprice={handleRepricePlot}
           onHireManager={() => {
@@ -611,8 +634,8 @@ export const App: React.FC = () => {
         isOpen={showStatusBoard}
         onClose={() => setShowStatusBoard(false)}
         day={day}
-        cashGd={cashGd}
-        netWorthGd={netWorthGd}
+        cashGd={displayCash}
+        netWorthGd={displayNetWorth}
         reputation={reputation}
         customersServedToday={customersServedToday}
         revenueTodayCents={revenueTodayCents}

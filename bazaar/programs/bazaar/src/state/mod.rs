@@ -6,6 +6,7 @@ pub mod manager;
 pub mod intel;
 pub mod spectator;
 pub mod profile;
+pub mod player;
 pub mod signals;
 
 pub use season::*;
@@ -16,4 +17,5 @@ pub use manager::*;
 pub use intel::*;
 pub use spectator::*;
 pub use profile::*;
+pub use player::*;
 pub use signals::*;

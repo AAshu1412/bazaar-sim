@@ -77,6 +77,8 @@ export class IsometricEngineV3 {
   public plots: PlotInfo[] = [];
   public landmarks: LandmarkInfo[] = [];
   public npcs: CustomerNPC[] = [];
+  /** buildings are clicked through the viewport (Pixi hit-testing only caught a sliver of each sprite) */
+  private clickTargets: { container: PIXI.Container; top: number; bottom: number; highlight?: PIXI.Graphics; onClick: () => void }[] = [];
   public floatingTexts: { container: PIXI.Container; yVelocity: number; alphaVelocity: number }[] = [];
 
   // Callbacks for React HUD
@@ -136,6 +138,20 @@ export class IsometricEngineV3 {
       .wheel({ trackpadPinch: true, smooth: 8 })
       .decelerate({ friction: 0.88 })
       .clampZoom({ minScale: 0.35, maxScale: 2.4 });
+
+    viewport.on("clicked", (e: { world: { x: number; y: number } }) => {
+      const t = this.pickAt(e.world.x, e.world.y);
+      if (t) {
+        sfx.playPriceClick();
+        t.onClick();
+      }
+    });
+    viewport.on("pointermove", (e: PIXI.FederatedPointerEvent) => {
+      const w = viewport.toWorld(e.global.x, e.global.y);
+      const t = this.pickAt(w.x, w.y);
+      this.clickTargets.forEach((c) => c.highlight && (c.highlight.visible = c === t));
+      app.canvas.style.cursor = t ? "pointer" : "";
+    });
 
     viewport.addChild(this.groundLayer);
     viewport.addChild(this.entitiesLayer);
@@ -219,6 +235,15 @@ export class IsometricEngineV3 {
         }
       })
     );
+  }
+
+  private pickAt(wx: number, wy: number) {
+    let best: (typeof this.clickTargets)[number] | null = null;
+    for (const t of this.clickTargets) {
+      const c = t.container;
+      if (Math.abs(wx - c.x) <= 100 && wy >= c.y + t.top && wy <= c.y + t.bottom && (!best || c.zIndex > best.container.zIndex)) best = t;
+    }
+    return best;
   }
 
   private tileVariant(kind: TileKind, x: number, y: number): number {
@@ -448,12 +473,7 @@ export class IsometricEngineV3 {
     container.addChild(pill);
 
     // 5. Interactivity
-    container.eventMode = "static";
-    container.cursor = "pointer";
-    container.on("pointertap", () => {
-      sfx.playPriceClick();
-      if (this.onPlotClick) this.onPlotClick(plot);
-    });
+    this.clickTargets.push({ container, top: -132, bottom: 76, onClick: () => { if (this.onPlotClick) this.onPlotClick(plot); } });
 
     container.zIndex = iso.y + this.TILE_H;
     this.entitiesLayer.addChild(container);
@@ -615,22 +635,13 @@ export class IsometricEngineV3 {
     container.addChild(sprite);
 
     if (interactive) {
-      container.eventMode = "static";
-      container.cursor = "pointer";
-
       const highlight = new PIXI.Graphics();
       highlight.ellipse(0, this.TILE_H, 84, 42);
       highlight.stroke({ width: 2.5, color: 0xf59e0b, alpha: 0.9 });
       highlight.fill({ color: 0xf59e0b, alpha: 0.12 });
       highlight.visible = false;
       container.addChildAt(highlight, 0);
-
-      container.on("pointerover", () => (highlight.visible = true));
-      container.on("pointerout", () => (highlight.visible = false));
-      container.on("pointertap", () => {
-        sfx.playPriceClick();
-        if (onClick) onClick();
-      });
+      this.clickTargets.push({ container, top: -110, bottom: 76, highlight, onClick: () => { if (onClick) onClick(); } });
     }
 
     container.zIndex = iso.y + this.TILE_H;

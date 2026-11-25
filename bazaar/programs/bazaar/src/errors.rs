@@ -36,4 +36,10 @@ pub enum BazaarError {
     InvalidPlot,
     #[msg("Buyout offer has expired")]
     OfferExpired,
+    #[msg("Business is out of stock")]
+    OutOfStock,
+    #[msg("Inventory capacity exceeded")]
+    InventoryFull,
+    #[msg("Invalid amount or upgrade flag")]
+    InvalidAmount,
 }

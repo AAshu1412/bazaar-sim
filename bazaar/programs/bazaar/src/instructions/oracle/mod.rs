@@ -5,7 +5,7 @@ use crate::state::*;
 
 #[derive(Accounts)]
 pub struct ApplyMarketSignals<'info> {
-    #[account(seeds = [b"season", season.id.to_le_bytes().as_ref()], bump)]
+    #[account(seeds = [b"season", season.authority.as_ref(), season.id.to_le_bytes().as_ref()], bump)]
     pub season: Account<'info, Season>,
     #[account(
         init_if_needed,

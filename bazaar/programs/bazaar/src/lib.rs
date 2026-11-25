@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 
 pub mod constants;
 pub mod errors;
+pub mod gd;
 pub mod instructions;
 pub mod state;
 pub mod utils;
@@ -25,12 +26,16 @@ pub mod bazaar {
         handle_create_season(ctx, season_id, neighborhood_id, stake_amount)
     }
 
-    pub fn open_day(ctx: Context<OpenDay>, season_id: u64) -> Result<()> {
-        handle_open_day(ctx, season_id)
+    pub fn join_season(ctx: Context<JoinSeason>) -> Result<()> {
+        handle_join_season(ctx)
     }
 
-    pub fn close_day(ctx: Context<CloseDay>, season_id: u64) -> Result<()> {
-        handle_close_day(ctx, season_id)
+    pub fn open_day(ctx: Context<OpenDay>) -> Result<()> {
+        handle_open_day(ctx)
+    }
+
+    pub fn close_day(ctx: Context<CloseDay>) -> Result<()> {
+        handle_close_day(ctx)
     }
 
     // ─── PROPERTY & PLOTS ───
@@ -72,6 +77,15 @@ pub mod bazaar {
 
     pub fn set_business_price(ctx: Context<SetBusinessPrice>, new_price_cents: u16) -> Result<()> {
         handle_set_business_price(ctx, new_price_cents)
+    }
+
+    pub fn restock(ctx: Context<Restock>, units: u32) -> Result<()> {
+        handle_restock(ctx, units)
+    }
+
+    /// Town population buys from a shop (season authority / its session key only)
+    pub fn serve_customers(ctx: Context<ServeCustomers>, count: u16) -> Result<()> {
+        handle_serve_customers(ctx, count)
     }
 
     // ─── DEFI & LOANS ───

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Building, ShieldCheck, DollarSign, TrendingUp, X, Sparkles, Award } from "lucide-react";
 import { PlotInfo } from "../engine/IsometricEngineV3";
 import { sfx } from "../audio/sfx";
@@ -11,6 +11,10 @@ interface PlotInspectorProps {
   onReprice: (plotId: number, newPriceCents: number) => void;
   onHireManager: (plotId: number) => void;
   onScoutPlot: (plotId: number) => void;
+  /** present only when the player is playing on-chain */
+  chain?: { gd: number; inventory: number; upgrades: number };
+  onRestock?: () => Promise<unknown> | void;
+  onUpgrade?: () => Promise<unknown> | void;
 }
 
 export const PlotInspector: React.FC<PlotInspectorProps> = ({
@@ -19,13 +23,22 @@ export const PlotInspector: React.FC<PlotInspectorProps> = ({
   onReprice,
   onHireManager,
   onScoutPlot,
+  chain,
+  onRestock,
+  onUpgrade,
 }) => {
+  const [busy, setBusy] = useState<string | null>(null);
+  const run = async (id: string, fn?: () => Promise<unknown> | void) => {
+    if (!fn || busy) return;
+    setBusy(id);
+    try { await fn(); } finally { setBusy(null); }
+  };
   if (!plot) return null;
 
   const isLocalOwner = plot.id === 0;
 
   return (
-    <div className="fixed top-20 right-6 z-40 w-84 bg-[#1c1815]/95 border border-[#d4a359]/40 rounded-2xl p-5 shadow-2xl backdrop-blur-md text-[#f7f0e3] animate-slideLeft">
+    <div className="fixed top-20 right-6 z-40 w-[340px] max-h-[calc(100vh-7rem)] overflow-y-auto bg-[#1c1815]/95 border border-[#d4a359]/40 rounded-2xl p-5 shadow-2xl backdrop-blur-md text-[#f7f0e3] animate-slideLeft">
       {/* Top Header */}
       <div className="flex items-start justify-between pb-3 border-b border-[#d4a359]/20 mb-3">
         <div className="flex items-center gap-2.5">
@@ -98,6 +111,32 @@ export const PlotInspector: React.FC<PlotInspectorProps> = ({
               onChange={(e) => onReprice(plot.id, Number(e.target.value))}
               className="w-full accent-[#d4a359] h-2 bg-gray-800 rounded-lg cursor-pointer"
             />
+            {chain && (
+              <div className="space-y-1.5 pt-1">
+                <div className="flex justify-between text-[10px] font-mono text-gray-400">
+                  <span>On-chain stock</span>
+                  <span className={chain.inventory < 10 ? "text-red-400 font-bold" : "text-emerald-400 font-bold"}>{chain.inventory} units</span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => run("restock", onRestock)}
+                    disabled={!!busy || chain.gd < 30}
+                    title="20 units x $1.50 wholesale, paid in GD"
+                    className="flex-1 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 disabled:opacity-40 text-emerald-300 border border-emerald-500/40 rounded-xl font-bold font-sans text-xs transition-all"
+                  >
+                    {busy === "restock" ? "Paying…" : "Restock +20 (−30 GD)"}
+                  </button>
+                  <button
+                    onClick={() => run("upgrade", onUpgrade)}
+                    disabled={!!busy || (chain.upgrades & 1) !== 0 || chain.gd < 1000}
+                    title="Signage: +15% foot traffic, paid in GD"
+                    className="flex-1 py-2 bg-amber-600/20 hover:bg-amber-600/30 disabled:opacity-40 text-amber-300 border border-amber-500/40 rounded-xl font-bold font-sans text-xs transition-all"
+                  >
+                    {(chain.upgrades & 1) !== 0 ? "Signage ✓" : busy === "upgrade" ? "Paying…" : "Signage (−1,000 GD)"}
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="flex gap-2 pt-2">
               <button
                 onClick={() => onHireManager(plot.id)}
