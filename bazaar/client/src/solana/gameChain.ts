@@ -18,7 +18,8 @@ export const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9
 export const GD_UNIT = 100; // raw units per GD (mint has 2 decimals)
 const SEASON_ID = 1n;
 const PLOT_ID = 0;
-const SESSION_TOPUP = 0.06 * LAMPORTS_PER_SOL;
+const SESSION_TOPUP = 0.04 * LAMPORTS_PER_SOL; // covers ~0.013 SOL of account rent + thousands of tx fees
+const WALLET_NEEDS = SESSION_TOPUP + 0.004 * LAMPORTS_PER_SOL; // + session-token rent + fee
 const SESSION_DAYS = 6;
 const LOW_SESSION_SOL = 0.01 * LAMPORTS_PER_SOL;
 const SESSION_DISC_CREATE = [242, 193, 143, 179, 150, 25, 122, 227];
@@ -171,8 +172,13 @@ export class GameChain {
     if (!this.wallet || !this.session) return;
     const run = this.runId;
     try {
-      this.set({ phase: "connecting", detail: "Waiting for wallet approval…" });
       const s = this.session, auth = this.authority;
+      // pre-flight, so a missing balance is explained here instead of surfacing as a wallet "simulation failed"
+      const walletBal = await this.conn.getBalance(auth);
+      if (walletBal < WALLET_NEEDS) {
+        throw new Error(`Your wallet has ${(walletBal / LAMPORTS_PER_SOL).toFixed(3)} SOL on devnet but the session needs about ${(WALLET_NEEDS / LAMPORTS_PER_SOL).toFixed(3)}. Get devnet SOL at faucet.solana.com, and make sure your wallet is set to Devnet.`);
+      }
+      this.set({ phase: "connecting", detail: "Waiting for wallet approval…" });
       const ixs: TransactionInstruction[] = [];
       const existing = await this.conn.getAccountInfo(this.sessionToken);
       if (existing) {
@@ -213,9 +219,10 @@ export class GameChain {
   }
 
   private fail(e: unknown, phase: Phase = "error") {
-    const msg = e instanceof Error ? e.message : String(e);
+    let msg = e instanceof Error ? e.message : String(e);
+    if (/simulat|blockhash|network/i.test(msg) && !/devnet/i.test(msg)) msg += " (is your wallet set to Devnet? Phantom: Settings > Developer Settings > Testnet Mode > Solana Devnet)";
     console.warn("[chain]", e);
-    this.set({ phase, detail: msg.length > 160 ? msg.slice(0, 160) + "…" : msg });
+    this.set({ phase, detail: msg.length > 260 ? msg.slice(0, 260) + "…" : msg });
   }
 
   private async startPlaying(run: number) {

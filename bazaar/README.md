@@ -13,7 +13,7 @@
 ## 🔑 Wallet, session keys and GD (how the on-chain game works)
 
 - **Connect any Solana wallet** (Phantom, Solflare, Backpack via the Wallet Standard). Connecting asks for nothing.
-- **One approval, then no popups.** "Start session" signs a single transaction that authorises a MagicBlock session key (`session-keys` program) and tops it up with 0.06 SOL for fees. Every game transaction after that (create season, join, claim plot, open shop, reprice, restock, upgrades, customer payments, Pyth signals) is signed by the session key. The key is scoped to this program, expires in 6 days and lives in `localStorage`.
+- **One approval, then no popups.** "Start session" signs a single transaction that authorises a MagicBlock session key (`session-keys` program) and tops it up with 0.04 SOL for fees. Every game transaction after that (create season, join, claim plot, open shop, reprice, restock, upgrades, customer payments, Pyth signals) is signed by the session key. The key is scoped to this program, expires in 6 days and lives in `localStorage`.
 - **GD is a real SPL token** (2 decimals, minted per season). Joining mints you 10,000 GD; the plot (3,000 GD) and shop (2,000 GD) are paid in GD to the town treasury. GD token accounts are owned by the program, so players cannot move GD out.
 - **The town's customers pay for real.** Each simulated customer who buys from your shop becomes a `serve_customers` call that moves `price x n` GD from the treasury (10M GD minted at season creation) to you and takes stock. Your balance rises with sales and falls with restocking and upgrades.
 - Other shops on the map are still simulated bots; only your shop is on-chain.

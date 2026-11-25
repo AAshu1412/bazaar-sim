@@ -9,8 +9,14 @@ export const WalletChip: React.FC = () => {
   const { connected } = useWallet();
   const s = useSyncExternalStore(gameChain.subscribe, gameChain.getState);
 
+  const showProblem = connected && (s.phase === "needs-session" || s.phase === "error") && !!s.detail;
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="relative flex items-center gap-1.5">
+      {showProblem && (
+        <div className="absolute top-full right-0 mt-2 w-80 z-50 rounded-xl border border-amber-500/50 bg-[#1c1815]/95 p-3 text-[11px] leading-snug text-amber-100 shadow-2xl backdrop-blur-md font-sans whitespace-normal">
+          {s.detail}
+        </div>
+      )}
       {connected && s.phase === "live" && (
         <div
           className="flex items-center gap-2 px-3 py-1.5 bg-[#120f0d] border border-emerald-500/40 rounded-xl text-xs font-mono"
