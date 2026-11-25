@@ -4,12 +4,15 @@ import {
   PublicKey,
   SystemProgram,
   Transaction,
+  VersionedTransaction,
   TransactionInstruction,
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import { Buffer } from "buffer";
 import { PROGRAM_ID, router } from "./router";
-import { BTC_USD_FEED, SOL_USD_FEED } from "./pyth";
+import { HermesClient } from "@pythnetwork/hermes-client";
+import { PythSolanaReceiver } from "@pythnetwork/pyth-solana-receiver";
+import { SOL_FEED_ID, BTC_FEED_ID, hermesUrl } from "./pyth";
 
 const KEY_STORAGE = "bazaar.burner";
 const SEASON_STORAGE = "bazaar.season";
@@ -120,20 +123,46 @@ export class OnChainService {
     return true;
   }
 
-  /** Permissionless crank: program reads Pyth PriceUpdateV2 accounts and stores SOL move / BTC volatility. */
-  public async crankMarketSignals(log: Log): Promise<void> {
+  /**
+   * Permissionless crank. Posts a fresh Pyth update (SOL + BTC) from Hermes to temporary price-update
+   * accounts, calls apply_market_signals with them, then closes them to recover the rent.
+   * Hermes needs an API key: the vite proxy at /hermes injects it (see vite.config.ts).
+   */
+  public async crankMarketSignals(
+    log: Log,
+    hermes = new HermesClient(hermesUrl())
+  ): Promise<void> {
     const start = performance.now();
     try {
       if (!(await this.bootstrap(log))) throw new Error("not bootstrapped");
-      const me = this.burner.publicKey;
-      const sys = { pubkey: SystemProgram.programId, isSigner: false, isWritable: false };
-      const sig = await this.send([
-        this.ix(await disc("apply_market_signals"), [
+      const kp = this.burner;
+      const sign = async <T extends Transaction | VersionedTransaction>(tx: T): Promise<T> => {
+        if (tx instanceof VersionedTransaction) tx.sign([kp]);
+        else tx.partialSign(kp);
+        return tx;
+      };
+      const wallet = {
+        publicKey: kp.publicKey, payer: kp,
+        signTransaction: sign, signAllTransactions: async (txs: any[]) => Promise.all(txs.map(sign)),
+      };
+      const receiver = new PythSolanaReceiver({ connection: router.baseConn, wallet: wallet as any });
+
+      const updates = (await hermes.getLatestPriceUpdates([SOL_FEED_ID, BTC_FEED_ID], { encoding: "base64" })).binary.data;
+      const builder = receiver.newTransactionBuilder({ closeUpdateAccounts: true });
+      await builder.addPostPriceUpdates(updates);
+      await builder.addPriceConsumerInstructions(async (getPriceUpdateAccount) => [{
+        instruction: this.ix(await disc("apply_market_signals"), [
           ro(router.getSeasonPDA(this.seasonId)), w(router.getSignalsPDA(this.seasonId)),
-          ro(SOL_USD_FEED), ro(BTC_USD_FEED), w(me, true), sys,
+          ro(getPriceUpdateAccount(SOL_FEED_ID)), ro(getPriceUpdateAccount(BTC_FEED_ID)),
+          w(kp.publicKey, true), ro(SystemProgram.programId),
         ]),
-      ]);
-      log("Pyth market signals applied on-chain", { signature: sig, latencyMs: Math.round(performance.now() - start), isLive: true });
+        signers: [],
+      }]);
+      const txs = await builder.buildVersionedTransactions({ computeUnitPriceMicroLamports: 50_000 });
+      const sigs = await receiver.provider.sendAll(txs, { skipPreflight: true });
+      log("Pyth market signals applied on-chain", {
+        signature: sigs[sigs.length - 1], latencyMs: Math.round(performance.now() - start), isLive: true,
+      });
     } catch (e) {
       log(`Pyth market signals not applied: ${(e as Error).message}`, { signature: "sim-pyth", latencyMs: 0, isLive: false });
     }
