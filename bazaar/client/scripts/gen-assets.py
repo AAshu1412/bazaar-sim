@@ -70,6 +70,7 @@ EXTERIOR = {
     "glassblowers-workshop": "glassblower's workshop with blue glass bottles",
     "weavers-workshop": "weaver's workshop with looms and colored yarn",
     "leatherworkers-workshop": "leatherworker's workshop with hides on racks",
+    "tannery": "tannery with stretched hides and tanning barrels",
     "stonemason-workshop": "stonemason workshop with carved blocks",
     "laundry-house": "laundry house with clothes lines",
     "sacred-grove": "sacred grove with ancient trees and a small stone altar",
