@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 302 256" width="302" height="256">
+  <g stroke="#1f2f33" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+    <polygon points="151,128 271,190 151,252 31,190" fill="#9aa09a"/>
+    <polygon points="151,138 253,190 151,242 49,190" fill="#b2b8b0" stroke="none"/>
+    <!-- teal walls -->
+    <polygon points="51,190 151,240 151,170 51,120" fill="#79b0b5"/>
+    <polygon points="151,240 251,190 251,120 151,170" fill="#5a8f96"/>
+    <polygon points="51,190 151,240 151,230 51,180" fill="#6f7a7a" stroke="none"/>
+    <polygon points="151,240 251,190 251,180 151,230" fill="#5c6666" stroke="none"/>
+    <polygon points="51,120 151,170 101,105" fill="#79b0b5"/>
+    <!-- copper roof -->
+    <polygon points="151,170 251,120 201,55 101,105" fill="#9a5f3b"/>
+    <polygon points="151,170 251,120 251,129 151,179" fill="#6e4129"/>
+    <polyline points="51,120 101,105" fill="none" stroke="#6e4129" stroke-width="4"/>
+    <g stroke="#7f4c2f" stroke-width="1.2" fill="none">
+      <line x1="126" y1="137" x2="226" y2="87"/><line x1="138" y1="153" x2="238" y2="103"/><line x1="114" y1="121" x2="214" y2="71"/>
+    </g>
+    <!-- big clock on gable -->
+    <circle cx="101" cy="139" r="15" fill="#f3ead8"/>
+    <circle cx="101" cy="139" r="11.5" fill="none" stroke="#8a6b3a" stroke-width="1.2"/>
+    <line x1="101" y1="139" x2="101" y2="131" stroke-width="2"/>
+    <line x1="101" y1="139" x2="107" y2="141" stroke-width="2"/>
+    <g fill="#8a6b3a" stroke="none"><circle cx="101" cy="129" r="1"/><circle cx="111" cy="139" r="1"/><circle cx="101" cy="149" r="1"/><circle cx="91" cy="139" r="1"/></g>
+    <!-- gear on roof -->
+    <g transform="translate(205,92)">
+      <circle r="9" fill="#c9a24a"/><circle r="3.4" fill="#9a5f3b"/>
+      <g stroke="#c9a24a" stroke-width="4"><line x1="0" y1="-12" x2="0" y2="12"/><line x1="-12" y1="0" x2="12" y2="0"/><line x1="-8.5" y1="-8.5" x2="8.5" y2="8.5"/><line x1="-8.5" y1="8.5" x2="8.5" y2="-8.5"/></g>
+      <circle r="9" fill="#c9a24a"/><circle r="3.4" fill="#9a5f3b"/>
+    </g>
+    <!-- windows -->
+    <polygon points="70,175 88,184 88,160 70,151" fill="#f4c871"/>
+    <polygon points="108,194 126,203 126,179 108,170" fill="#f4c871"/>
+    <!-- door + round window -->
+    <polygon points="186,222 211,210 211,172 186,184" fill="#45302a"/>
+    <circle cx="205" cy="196" r="1.8" fill="#e8c35a" stroke="none"/>
+    <circle cx="226" cy="168" r="8" fill="#f4c871"/>
+    <!-- hanging pocket-watch sign -->
+    <line x1="142" y1="213" x2="142" y2="206" stroke-width="1.6"/>
+    <circle cx="150" cy="219" r="8" fill="#d4a359"/><circle cx="150" cy="219" r="5.5" fill="#f3ead8" stroke-width="1.2"/>
+    <line x1="150" y1="219" x2="150" y2="215" stroke-width="1.4"/><line x1="150" y1="219" x2="153" y2="220" stroke-width="1.4"/>
+  </g>
+</svg>

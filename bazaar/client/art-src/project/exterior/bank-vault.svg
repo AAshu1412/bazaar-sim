@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 302 256" width="302" height="256">
+  <g stroke="#2f3338" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+    <polygon points="151,128 271,190 151,252 31,190" fill="#9a9a94"/>
+    <polygon points="151,138 253,190 151,242 49,190" fill="#b3b3ab" stroke="none"/>
+    <!-- stone walls -->
+    <polygon points="51,190 151,240 151,170 51,120" fill="#c9ccd0"/>
+    <polygon points="151,240 251,190 251,120 151,170" fill="#a4a9b0"/>
+    <!-- masonry lines -->
+    <g stroke="#8e939a" stroke-width="1" fill="none">
+      <line x1="51" y1="150" x2="151" y2="200"/><line x1="51" y1="170" x2="151" y2="220"/>
+      <line x1="151" y1="200" x2="251" y2="150"/><line x1="151" y1="220" x2="251" y2="170"/>
+    </g>
+    <!-- gable + copper roof -->
+    <polygon points="51,120 151,170 101,105" fill="#c9ccd0"/>
+    <polygon points="151,170 251,120 201,55 101,105" fill="#4f8f7a"/>
+    <polygon points="151,170 251,120 251,128 151,178" fill="#37695a"/>
+    <polyline points="51,120 101,105" fill="none" stroke="#37695a" stroke-width="4"/>
+    <g stroke="#3d7767" stroke-width="1.2" fill="none">
+      <line x1="126" y1="137" x2="226" y2="87"/><line x1="138" y1="153" x2="238" y2="103"/><line x1="114" y1="121" x2="214" y2="71"/>
+    </g>
+    <!-- coin emblem on gable -->
+    <circle cx="101" cy="138" r="12" fill="#d9ad4b"/>
+    <circle cx="101" cy="138" r="8" fill="none" stroke="#a57a1f" stroke-width="1.6"/>
+    <rect x="99.5" y="132" width="3" height="12" fill="#a57a1f" stroke="none"/>
+    <!-- columns left of vault door -->
+    <polygon points="160,236 168,232 168,178 160,182" fill="#e1e3e6"/>
+    <polygon points="226,203 234,199 234,145 226,149" fill="#e1e3e6"/>
+    <!-- vault door -->
+    <polygon points="176,228 218,207 218,165 176,186" fill="#5e6168"/>
+    <polygon points="181,224 213,208 213,170 181,186" fill="#7a7e87" stroke-width="1.4"/>
+    <ellipse cx="197" cy="197" rx="9" ry="11" fill="#d9ad4b" stroke-width="1.6"/>
+    <circle cx="197" cy="197" r="2.5" fill="#a57a1f" stroke="none"/>
+    <!-- windows with bars -->
+    <polygon points="71,172 91,182 91,158 71,148" fill="#2f3b4a"/>
+    <polygon points="111,192 131,202 131,178 111,168" fill="#2f3b4a"/>
+    <g stroke="#c9ccd0" stroke-width="1.4"><line x1="76" y1="174" x2="76" y2="150"/><line x1="81" y1="177" x2="81" y2="153"/><line x1="86" y1="179" x2="86" y2="155"/>
+    <line x1="116" y1="194" x2="116" y2="170"/><line x1="121" y1="197" x2="121" y2="173"/><line x1="126" y1="199" x2="126" y2="175"/></g>
+    <!-- steps -->
+    <polygon points="170,246 224,219 224,213 170,240" fill="#b9bcc0"/>
+    <!-- coin stack -->
+    <ellipse cx="82" cy="224" rx="8" ry="4" fill="#d9ad4b"/>
+    <rect x="74" y="216" width="16" height="8" fill="#c39a3b" stroke="none"/>
+    <ellipse cx="82" cy="216" rx="8" ry="4" fill="#e6c25f"/>
+  </g>
+</svg>

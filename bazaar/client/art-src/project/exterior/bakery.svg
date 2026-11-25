@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 302 256" width="302" height="256">
+  <g stroke="#3a2a22" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+    <!-- plaza -->
+    <polygon points="151,128 271,190 151,252 31,190" fill="#a89a80"/>
+    <polygon points="151,138 253,190 151,242 49,190" fill="#bcae93" stroke="none"/>
+    <!-- walls -->
+    <polygon points="51,190 151,240 151,170 51,120" fill="#ecd7ad"/>
+    <polygon points="151,240 251,190 251,120 151,170" fill="#d3b583"/>
+    <!-- stone plinth -->
+    <polygon points="51,190 151,240 151,230 51,180" fill="#8d8478" stroke="none"/>
+    <polygon points="151,240 251,190 251,180 151,230" fill="#756d62" stroke="none"/>
+    <!-- gable end + roof -->
+    <polygon points="51,120 151,170 101,105" fill="#ecd7ad"/>
+    <polygon points="151,170 251,120 201,55 101,105" fill="#c4573a"/>
+    <polygon points="151,170 251,120 251,128 151,178" fill="#8e3b26"/>
+    <polyline points="51,120 101,105" fill="none" stroke="#6b3a2a" stroke-width="4"/>
+    <!-- roof tiles -->
+    <g stroke="#9c4430" stroke-width="1.2" fill="none">
+      <line x1="126" y1="137" x2="226" y2="87"/>
+      <line x1="138" y1="153" x2="238" y2="103"/>
+      <line x1="114" y1="121" x2="214" y2="71"/>
+    </g>
+    <!-- chimney -->
+    <polygon points="166,80 178,86 178,56 166,50" fill="#8a5a44"/>
+    <polygon points="178,86 190,80 190,50 178,56" fill="#6e4636"/>
+    <polygon points="166,50 178,56 190,50 178,44" fill="#a37057"/>
+    <ellipse cx="178" cy="36" rx="7" ry="4" fill="#e9e4dc" stroke="none" opacity=".8"/>
+    <ellipse cx="184" cy="26" rx="5" ry="3" fill="#e9e4dc" stroke="none" opacity=".6"/>
+    <!-- windows (left wall) with warm light -->
+    <polygon points="71,172 91,182 91,158 71,148" fill="#f4c871"/>
+    <polygon points="111,192 131,202 131,178 111,168" fill="#f4c871"/>
+    <polygon points="68,174 94,186 94,190 68,178" fill="#6b4a38" stroke="none"/>
+    <polygon points="108,194 134,206 134,210 108,198" fill="#6b4a38" stroke="none"/>
+    <!-- door (right wall) -->
+    <polygon points="186,222 211,210 211,172 186,184" fill="#6b3f26"/>
+    <circle cx="205" cy="196" r="1.8" fill="#e8c35a" stroke="none"/>
+    <!-- striped awning -->
+    <polygon points="178,186 216,167 224,176 186,195" fill="#d9534f"/>
+    <polygon points="186,182 197,176.5 205,185 194,190.5" fill="#f3ead8" stroke="none"/>
+    <polygon points="208,171.5 216,167 224,176 216,180.5" fill="#f3ead8" stroke="none"/>
+    <!-- hanging bread sign -->
+    <line x1="143" y1="212" x2="143" y2="204" stroke-width="1.6"/>
+    <polygon points="143,206 157,213 157,225 143,218" fill="#d4a359"/>
+    <ellipse cx="150" cy="217" rx="5" ry="3.4" fill="#c58a42" stroke-width="1.4"/>
+    <!-- crates + barrel -->
+    <polygon points="222,226 236,219 236,208 222,215" fill="#a9763f"/>
+    <polygon points="236,219 248,213 248,202 236,208" fill="#8b5f31"/>
+    <polygon points="222,215 236,208 248,202 234,195" fill="#c28b4d"/>
+    <ellipse cx="108" cy="236" rx="9" ry="4.5" fill="#8b5f31"/>
+    <rect x="99" y="224" width="18" height="12" fill="#a9763f" stroke="none"/>
+    <ellipse cx="108" cy="224" rx="9" ry="4.5" fill="#c28b4d"/>
+  </g>
+</svg>

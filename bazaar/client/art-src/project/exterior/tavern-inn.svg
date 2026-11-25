@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 302 256" width="302" height="256">
+  <g stroke="#2e2420" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+    <polygon points="151,128 271,190 151,252 31,190" fill="#a39378"/>
+    <polygon points="151,138 253,190 151,242 49,190" fill="#b8a98d" stroke="none"/>
+    <!-- plaster walls -->
+    <polygon points="51,190 151,240 151,170 51,120" fill="#eadfc6"/>
+    <polygon points="151,240 251,190 251,120 151,170" fill="#cfc2a4"/>
+    <!-- timber frame -->
+    <g stroke="#5a3a26" stroke-width="4" fill="none">
+      <line x1="51" y1="120" x2="51" y2="190"/><line x1="101" y1="145" x2="101" y2="215"/>
+      <line x1="51" y1="155" x2="151" y2="205"/>
+      <line x1="151" y1="170" x2="151" y2="240"/><line x1="201" y1="145" x2="201" y2="215"/><line x1="251" y1="120" x2="251" y2="190"/>
+      <line x1="151" y1="205" x2="251" y2="155"/>
+      <line x1="51" y1="190" x2="101" y2="145" stroke-width="3"/><line x1="151" y1="240" x2="201" y2="195" stroke-width="3"/>
+    </g>
+    <polygon points="51,120 151,170 101,105" fill="#eadfc6"/>
+    <polyline points="76,112.5 101,150 126,137" fill="none" stroke="#5a3a26" stroke-width="3.5"/>
+    <!-- slate roof -->
+    <polygon points="151,170 251,120 201,55 101,105" fill="#5b6c8f"/>
+    <polygon points="151,170 251,120 251,129 151,179" fill="#3e4c6b"/>
+    <polyline points="51,120 101,105" fill="none" stroke="#3e4c6b" stroke-width="4"/>
+    <g stroke="#475678" stroke-width="1.2" fill="none">
+      <line x1="126" y1="137" x2="226" y2="87"/><line x1="138" y1="153" x2="238" y2="103"/><line x1="114" y1="121" x2="214" y2="71"/>
+    </g>
+    <!-- dormer window glowing -->
+    <polygon points="170,122 190,112 190,98 170,108" fill="#f4c871"/>
+    <polygon points="170,108 180,92 190,98" fill="#5b6c8f"/>
+    <!-- lit windows -->
+    <polygon points="62,167 76,174 76,152 62,145" fill="#f4c871"/>
+    <polygon points="112,195 126,202 126,180 112,173" fill="#f4c871"/>
+    <polygon points="211,192 225,185 225,163 211,170" fill="#f4c871"/>
+    <!-- door -->
+    <polygon points="164,232 189,220 189,184 164,196" fill="#5a3a26"/>
+    <circle cx="183" cy="206" r="1.8" fill="#e8c35a" stroke="none"/>
+    <!-- hanging mug sign -->
+    <line x1="140" y1="214" x2="128" y2="208" stroke-width="2"/>
+    <polygon points="118,210 130,216 130,232 118,226" fill="#d4a359"/>
+    <rect x="121" y="217" width="6" height="7" fill="#f3ead8" stroke-width="1.4"/>
+    <path d="M127 219 q3 1 0 4" fill="none" stroke-width="1.4"/>
+    <!-- barrels -->
+    <ellipse cx="236" cy="228" rx="9" ry="4.5" fill="#8b5f31"/>
+    <rect x="227" y="216" width="18" height="12" fill="#a9763f" stroke="none"/>
+    <ellipse cx="236" cy="216" rx="9" ry="4.5" fill="#c28b4d"/>
+    <ellipse cx="216" cy="238" rx="8" ry="4" fill="#8b5f31"/>
+    <rect x="208" y="228" width="16" height="10" fill="#a9763f" stroke="none"/>
+    <ellipse cx="216" cy="228" rx="8" ry="4" fill="#c28b4d"/>
+  </g>
+</svg>

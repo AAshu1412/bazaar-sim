@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 302 256" width="302" height="256">
+  <g stroke="#2d2018" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+    <polygon points="151,128 271,190 151,252 31,190" fill="#a08f78"/>
+    <polygon points="151,138 253,190 151,242 49,190" fill="#b6a68e" stroke="none"/>
+    <!-- wood-panel walls -->
+    <polygon points="51,190 151,240 151,170 51,120" fill="#b88d66"/>
+    <polygon points="151,240 251,190 251,120 151,170" fill="#97704e"/>
+    <g stroke="#7d5a3c" stroke-width="1.2" fill="none">
+      <line x1="71" y1="130" x2="71" y2="200"/><line x1="91" y1="140" x2="91" y2="210"/><line x1="111" y1="150" x2="111" y2="220"/><line x1="131" y1="160" x2="131" y2="230"/>
+      <line x1="171" y1="180" x2="171" y2="230"/><line x1="231" y1="150" x2="231" y2="200"/><line x1="191" y1="170" x2="191" y2="220"/><line x1="211" y1="160" x2="211" y2="210"/>
+    </g>
+    <polygon points="51,120 151,170 101,105" fill="#b88d66"/>
+    <!-- roof -->
+    <polygon points="151,170 251,120 201,55 101,105" fill="#7a3b2e"/>
+    <polygon points="151,170 251,120 251,129 151,179" fill="#552620"/>
+    <polyline points="51,120 101,105" fill="none" stroke="#552620" stroke-width="4"/>
+    <g stroke="#632f25" stroke-width="1.2" fill="none">
+      <line x1="126" y1="137" x2="226" y2="87"/><line x1="138" y1="153" x2="238" y2="103"/><line x1="114" y1="121" x2="214" y2="71"/>
+    </g>
+    <!-- big shop window with books -->
+    <polygon points="66,178 126,208 126,172 66,142" fill="#fbe7b0"/>
+    <g stroke-width="1.2">
+      <polygon points="70,166 78,170 78,160 70,156" fill="#c0392b"/><polygon points="78,170 86,174 86,162 78,158" fill="#2e86c1"/>
+      <polygon points="86,174 94,178 94,166 86,162" fill="#27ae60"/><polygon points="94,178 102,182 102,170 94,166" fill="#f39c12"/>
+      <polygon points="102,182 110,186 110,172 102,168" fill="#8e44ad"/><polygon points="110,186 118,190 118,176 110,172" fill="#c0392b"/>
+    </g>
+    <polygon points="62,180 130,214 130,219 62,185" fill="#6b4a38" stroke="none"/>
+    <!-- door -->
+    <polygon points="186,222 211,210 211,172 186,184" fill="#4a2e1c"/>
+    <circle cx="205" cy="196" r="1.8" fill="#e8c35a" stroke="none"/>
+    <!-- quill sign -->
+    <line x1="228" y1="190" x2="240" y2="184" stroke-width="2"/>
+    <polygon points="232,190 246,183 246,171 232,178" fill="#d4a359"/>
+    <path d="M236 186 q4 -9 8 -12 q-1 7 -8 12z" fill="#f3ead8" stroke-width="1.2"/>
+    <!-- book stack outside -->
+    <polygon points="140,232 156,240 156,234 140,226" fill="#2e86c1"/><polygon points="140,226 156,234 164,230 148,222" fill="#4aa3d9"/>
+    <polygon points="142,222 158,230 158,225 142,217" fill="#c0392b"/><polygon points="142,217 158,225 166,221 150,213" fill="#e0574a"/>
+  </g>
+</svg>

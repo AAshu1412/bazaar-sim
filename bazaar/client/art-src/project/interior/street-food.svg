@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 768 432" width="768" height="432">
+  <g stroke="#3a2a22" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">
+    <!-- back wall + floor -->
+    <rect x="0" y="0" width="768" height="280" fill="#e6cfa3" stroke="none"/>
+    <polygon points="0,280 768,280 768,432 0,432" fill="#9b7653" stroke="none"/>
+    <g stroke="#82613f" stroke-width="2" fill="none"><line x1="0" y1="310" x2="768" y2="310"/><line x1="0" y1="350" x2="768" y2="350"/><line x1="0" y1="396" x2="768" y2="396"/>
+      <line x1="120" y1="280" x2="40" y2="432"/><line x1="300" y1="280" x2="260" y2="432"/><line x1="480" y1="280" x2="510" y2="432"/><line x1="660" y1="280" x2="740" y2="432"/></g>
+    <rect x="0" y="262" width="768" height="20" fill="#7b5a3d" stroke="none"/>
+    <!-- timber beams -->
+    <rect x="0" y="0" width="768" height="26" fill="#6b4a2e" stroke="none"/>
+    <rect x="96" y="0" width="22" height="280" fill="#6b4a2e" stroke="none"/><rect x="650" y="0" width="22" height="280" fill="#6b4a2e" stroke="none"/>
+    <!-- brick oven -->
+    <polygon points="250,280 250,120 384,40 518,120 518,280" fill="#a4553b"/>
+    <g stroke="#7e3f2b" stroke-width="2" fill="none"><line x1="250" y1="160" x2="518" y2="160"/><line x1="250" y1="200" x2="518" y2="200"/><line x1="250" y1="240" x2="518" y2="240"/>
+      <line x1="320" y1="120" x2="320" y2="160"/><line x1="440" y1="120" x2="440" y2="160"/><line x1="290" y1="160" x2="290" y2="200"/><line x1="384" y1="160" x2="384" y2="200"/><line x1="480" y1="160" x2="480" y2="200"/></g>
+    <path d="M300 280 V200 q84 -80 168 0 V280z" fill="#2a1712"/>
+    <path d="M330 280 V230 q54 -50 108 0 V280z" fill="#f28c28" stroke="none"/>
+    <path d="M350 280 V250 q34 -30 68 0 V280z" fill="#ffd166" stroke="none"/>
+    <rect x="360" y="40" width="48" height="24" fill="#7e3f2b" stroke="none"/>
+    <!-- shelves with bread (left) -->
+    <rect x="0" y="116" width="94" height="10" fill="#5a3a26"/><rect x="0" y="196" width="94" height="10" fill="#5a3a26"/>
+    <g stroke-width="2"><ellipse cx="22" cy="106" rx="16" ry="10" fill="#d9a05b"/><ellipse cx="54" cy="107" rx="14" ry="9" fill="#c58a42"/><ellipse cx="80" cy="108" rx="10" ry="8" fill="#e0b070"/>
+      <ellipse cx="24" cy="186" rx="15" ry="10" fill="#c58a42"/><ellipse cx="58" cy="187" rx="16" ry="10" fill="#d9a05b"/></g>
+    <!-- shelves right -->
+    <rect x="674" y="116" width="94" height="10" fill="#5a3a26"/><rect x="674" y="196" width="94" height="10" fill="#5a3a26"/>
+    <g stroke-width="2"><ellipse cx="700" cy="106" rx="14" ry="9" fill="#d9a05b"/><ellipse cx="736" cy="107" rx="16" ry="10" fill="#c58a42"/>
+      <ellipse cx="702" cy="186" rx="16" ry="10" fill="#e0b070"/><ellipse cx="740" cy="187" rx="14" ry="9" fill="#d9a05b"/></g>
+    <!-- hanging lamps -->
+    <g stroke-width="2"><line x1="190" y1="26" x2="190" y2="70"/><polygon points="176,70 204,70 198,92 182,92" fill="#f6c453"/>
+      <line x1="580" y1="26" x2="580" y2="70"/><polygon points="566,70 594,70 588,92 572,92" fill="#f6c453"/></g>
+    <circle cx="190" cy="104" r="30" fill="#f6c453" opacity=".22" stroke="none"/><circle cx="580" cy="104" r="30" fill="#f6c453" opacity=".22" stroke="none"/>
+    <!-- counter -->
+    <polygon points="110,316 658,316 690,372 78,372" fill="#b98757"/>
+    <rect x="78" y="372" width="612" height="34" fill="#8d6238"/>
+    <!-- loaves + baker's peel on counter -->
+    <g stroke-width="2.4"><ellipse cx="220" cy="304" rx="34" ry="14" fill="#d9a05b"/><path d="M200 300 q10 -6 20 0 M222 298 q10 -6 20 0" fill="none"/>
+      <ellipse cx="320" cy="306" rx="28" ry="12" fill="#c58a42"/><ellipse cx="440" cy="305" rx="36" ry="14" fill="#e0b070"/><path d="M420 300 q10 -6 20 0 M444 298 q10 -6 20 0" fill="none"/>
+      <ellipse cx="548" cy="306" rx="26" ry="11" fill="#d9a05b"/></g>
+    <rect x="600" y="214" width="12" height="96" fill="#8d6238"/><ellipse cx="606" cy="206" rx="26" ry="14" fill="#a9763f"/>
+    <!-- flour sacks -->
+    <g stroke-width="2.4"><path d="M22 392 q-8 -42 24 -46 q36 0 34 46 q-28 14 -58 0z" fill="#efe7d4"/><path d="M40 354 q10 -6 18 0" fill="none"/>
+      <path d="M690 396 q-6 -34 22 -38 q30 0 28 38 q-24 12 -50 0z" fill="#e6dcc4"/></g>
+  </g>
+</svg>
