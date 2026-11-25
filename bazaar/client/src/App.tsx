@@ -77,6 +77,14 @@ export const App: React.FC = () => {
   const [showGuidedTour, setShowGuidedTour] = useState<boolean>(false);
   const [showMultiplayerLobby, setShowMultiplayerLobby] = useState<boolean>(false);
   const [showStatusBoard, setShowStatusBoard] = useState<boolean>(false);
+  const [toast, setToast] = useState<string | null>(null);
+  // demo tools are hidden unless the URL has ?demo (keeps them out of recordings)
+  const SHOW_DEMO = new URLSearchParams(window.location.search).has("demo");
+  const soon = (what: string) => {
+    sfx.playPriceClick();
+    setToast(`${what} is coming soon`);
+    setTimeout(() => setToast(null), 2200);
+  };
   const [selectedPlot, setSelectedPlot] = useState<PlotInfo | null>(null);
 
   // Auto-launch Guided Tour on First Visit
@@ -105,12 +113,12 @@ export const App: React.FC = () => {
     // Connect Landmark Click to corresponding modal
     engine.onLandmarkClick = (modal: string) => {
       sfx.playPriceClick();
-      if (modal === "bank") setIsBankOpen(true);
-      else if (modal === "auction") useGameStore.setState({ auctionActive: true });
-      else if (modal === "intel") setIsIntelOpen(true);
+      if (modal === "auction") useGameStore.setState({ auctionActive: true });
       else if (modal === "uncleRavi") setShowUncleRavi(true);
-      else if (modal === "manager") setIsDirectorOpen(true);
-      else if (modal === "spectator") setShowStatusBoard(true);
+      else if (modal === "bank") soon("The bank");
+      else if (modal === "intel") soon("The Intel Guild");
+      else if (modal === "manager") soon("The Manager Office");
+      else if (modal === "spectator") soon("The Spectator Hall");
     };
 
     // Customer served callback for real P&L updates
@@ -380,17 +388,6 @@ export const App: React.FC = () => {
             </div>
           </div>
 
-          <div className="h-6 w-[1px] bg-[#d4a359]/20" />
-
-          <div className="flex items-center gap-2">
-            <Shield className="w-4 h-4 text-indigo-400" />
-            <div>
-              <span className="text-[10px] text-gray-400 block font-sans">Reputation</span>
-              <span className="font-mono font-black text-sm text-indigo-300">
-                {reputation}/100
-              </span>
-            </div>
-          </div>
         </div>
 
         {/* Right Badge: Pyth Lazer Feed & Controls */}
@@ -414,12 +411,12 @@ export const App: React.FC = () => {
           <WalletChip />
 
           <button
-            onClick={() => setShowMultiplayerLobby(true)}
-            title="Multiplayer World & Bot Backfill"
-            className="hidden 2xl:flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 rounded-xl text-xs font-bold transition-all"
+            onClick={() => soon("Multiplayer world")}
+            title="Multiplayer world: coming soon"
+            className="hidden 2xl:flex opacity-45 grayscale cursor-not-allowed items-center gap-1.5 px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 rounded-xl text-xs font-bold transition-all"
           >
             <Globe2 className="w-3.5 h-3.5" />
-            <span>World</span>
+            <span>World · soon</span>
           </button>
 
           <button
@@ -466,18 +463,18 @@ export const App: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setShowMultiplayerLobby(true)}
-          title="Multiplayer Season World"
-          className="p-2.5 bg-[#d4a359]/15 hover:bg-indigo-600/30 text-indigo-400 border border-[#d4a359]/25 hover:border-indigo-500/50 rounded-xl transition-all group flex flex-col items-center"
+          onClick={() => soon("Multiplayer world")}
+          title="Multiplayer world: coming soon"
+          className="relative opacity-45 grayscale cursor-not-allowed p-2.5 bg-[#d4a359]/15 hover:bg-indigo-600/30 text-indigo-400 border border-[#d4a359]/25 hover:border-indigo-500/50 rounded-xl transition-all group flex flex-col items-center"
         >
           <Globe2 className="w-4 h-4" />
-          <span className="text-[9px] font-mono mt-0.5 group-hover:block hidden">World</span>
+          <span className="text-[9px] font-mono mt-0.5 group-hover:block hidden">Soon</span>
         </button>
 
         <button
-          onClick={() => setIsBankOpen(true)}
-          title="First District Bank (Loans & Vaults)"
-          className="p-2.5 bg-[#d4a359]/15 hover:bg-emerald-600/30 text-emerald-400 border border-[#d4a359]/25 hover:border-emerald-500/50 rounded-xl transition-all group flex flex-col items-center"
+          onClick={() => soon("The bank")}
+          title="Bank: coming soon"
+          className="relative opacity-45 grayscale cursor-not-allowed p-2.5 bg-[#d4a359]/15 hover:bg-emerald-600/30 text-emerald-400 border border-[#d4a359]/25 hover:border-emerald-500/50 rounded-xl transition-all group flex flex-col items-center"
         >
           <Building2 className="w-4 h-4" />
           <span className="text-[9px] font-mono mt-0.5 group-hover:block hidden">Bank</span>
@@ -493,9 +490,9 @@ export const App: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setIsIntelOpen(true)}
-          title="Intel Guild (Scouting & M&A Offers)"
-          className="p-2.5 bg-[#d4a359]/15 hover:bg-purple-600/30 text-purple-400 border border-[#d4a359]/25 hover:border-purple-500/50 rounded-xl transition-all group flex flex-col items-center"
+          onClick={() => soon("The Intel Guild")}
+          title="Intel Guild: coming soon"
+          className="relative opacity-45 grayscale cursor-not-allowed p-2.5 bg-[#d4a359]/15 hover:bg-purple-600/30 text-purple-400 border border-[#d4a359]/25 hover:border-purple-500/50 rounded-xl transition-all group flex flex-col items-center"
         >
           <Eye className="w-4 h-4" />
           <span className="text-[9px] font-mono mt-0.5 group-hover:block hidden">Intel</span>
@@ -519,15 +516,23 @@ export const App: React.FC = () => {
           <span className="text-[9px] font-mono mt-0.5 group-hover:block hidden">Guide</span>
         </button>
 
+        {SHOW_DEMO && (
         <button
           onClick={() => setIsDirectorOpen(!isDirectorOpen)}
-          title="Hackathon Demo Director Toolbar"
+          title="Demo tools (not part of the game)"
           className="p-2.5 bg-[#d4a359]/15 hover:bg-indigo-600/30 text-indigo-400 border border-[#d4a359]/25 hover:border-indigo-500/50 rounded-xl transition-all group flex flex-col items-center"
         >
           <Sliders className="w-4 h-4" />
           <span className="text-[9px] font-mono mt-0.5 group-hover:block hidden">Director</span>
         </button>
+        )}
       </nav>
+
+      {toast && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl bg-[#1c1815]/95 border border-[#d4a359]/50 text-xs font-bold text-amber-200 shadow-2xl backdrop-blur-md pointer-events-none">
+          {toast}
+        </div>
+      )}
 
       {/* TOP CENTER EVENT BANNER */}
       <div className="fixed top-16 left-1/2 -translate-x-1/2 z-20 pointer-events-auto max-w-lg w-full px-4">
@@ -584,14 +589,8 @@ export const App: React.FC = () => {
           onUpgrade={() => gameChain.buyUpgrade(1, "Signage (+15% traffic)").catch((e) => addLedgerItem({ type: "TICK", message: `Upgrade failed: ${String(e.message ?? e).slice(0, 80)}`, signature: "sim-upgrade", latencyMs: 0, network: "Base" }))}
           onClose={() => setSelectedPlot(null)}
           onReprice={handleRepricePlot}
-          onHireManager={() => {
-            setIsDirectorOpen(true);
-            sfx.playPriceClick();
-          }}
-          onScoutPlot={() => {
-            setIsIntelOpen(true);
-            sfx.playPriceClick();
-          }}
+          onHireManager={() => soon("Hiring managers")}
+          onScoutPlot={() => soon("Scouting")}
         />
       )}
 
@@ -608,7 +607,7 @@ export const App: React.FC = () => {
         isOpen={showGuidedTour}
         onClose={() => setShowGuidedTour(false)}
         onFocusPlot={handleFocusPlayerPlot}
-        onOpenBank={() => setIsBankOpen(true)}
+        onOpenBank={() => soon("The bank")}
         onOpenAuction={() => useGameStore.setState({ auctionActive: true })}
         onReprice={(price) => handleRepricePlot(0, price)}
       />
@@ -650,6 +649,7 @@ export const App: React.FC = () => {
           onDismiss={() => setShowUncleRavi(false)}
         />
       )}
+      {SHOW_DEMO && (
       <DemoDirectorToolbar
         isOpen={isDirectorOpen}
         onToggle={() => setIsDirectorOpen(!isDirectorOpen)}
@@ -660,6 +660,7 @@ export const App: React.FC = () => {
         isNight={isNight}
         solPriceChange={solPumpChange}
       />
+      )}
     </div>
   );
 };

@@ -140,9 +140,9 @@ export const PlotInspector: React.FC<PlotInspectorProps> = ({
             <div className="flex gap-2 pt-2">
               <button
                 onClick={() => onHireManager(plot.id)}
-                className="flex-1 py-2 bg-[#d4a359]/20 hover:bg-[#d4a359]/30 text-amber-300 border border-[#d4a359]/40 rounded-xl font-bold font-sans text-xs transition-all"
+                className="flex-1 py-2 bg-[#d4a359]/10 text-amber-300/70 border border-[#d4a359]/20 rounded-xl font-bold font-sans text-xs transition-all opacity-50 grayscale cursor-not-allowed"
               >
-                Hire Manager
+                Hire Manager · soon
               </button>
             </div>
           </div>
@@ -150,9 +150,9 @@ export const PlotInspector: React.FC<PlotInspectorProps> = ({
           <div className="pt-1">
             <button
               onClick={() => onScoutPlot(plot.id)}
-              className="w-full py-2.5 bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 border border-purple-500/50 rounded-xl font-bold font-sans text-xs transition-all flex items-center justify-center gap-2"
+              className="w-full py-2.5 bg-purple-600/10 text-purple-200/70 border border-purple-500/20 rounded-xl font-bold font-sans text-xs transition-all flex items-center justify-center gap-2 opacity-50 grayscale cursor-not-allowed"
             >
-              Scout Secret Unit Cost (500 GD)
+              Scout rival · soon
             </button>
           </div>
         )}
