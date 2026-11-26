@@ -15,6 +15,7 @@ interface Props {
   /** the other shops with stock, cheapest first */
   rivals: PlotInfo[];
   myPriceCents: number;
+  myTrade: string;
   /** your GD (wallet balance when playing on-chain, practice coins otherwise) */
   gd: number;
   restockCostGd: number;
@@ -28,7 +29,7 @@ interface Props {
   onUpgrade: () => Promise<unknown> | void;
 }
 
-export const PlotInspector: React.FC<Props> = ({ plot, rivals, myPriceCents, gd, restockCostGd, stockCap, live, signage, onClose, onReprice, onRestock, onUpgrade }) => {
+export const PlotInspector: React.FC<Props> = ({ plot, rivals, myPriceCents, myTrade, gd, restockCostGd, stockCap, live, signage, onClose, onReprice, onRestock, onUpgrade }) => {
   const [busy, setBusy] = useState<"restock" | "upgrade" | null>(null);
   const run = async (id: "restock" | "upgrade", fn: () => Promise<unknown> | void) => {
     if (busy) return;
@@ -84,13 +85,13 @@ export const PlotInspector: React.FC<Props> = ({ plot, rivals, myPriceCents, gd,
                   <input type="range" aria-label="Your price" min={MIN_PRICE} max={MAX_PRICE} step={5} value={plot.priceCents} onChange={(e) => onReprice(Number(e.target.value))} className="mt-3 h-2 w-full cursor-pointer accent-wood" />
                   <p className="mt-2 text-center text-xs font-bold">
                     {cheapest ? (
-                      <>Cheaper than <span className="text-leaf">{beaten}</span> of {rivals.length} shops. Lowest rival: {price(cheapest.priceCents)}</>
+                      <>Cheaper than <span className="text-leaf">{beaten}</span> of {rivals.length} rival coffee houses. Lowest: {price(cheapest.priceCents)}</>
                     ) : "No rival has stock right now."}
                   </p>
                 </>
               ) : (
                 <p className="mt-2 text-center text-xs font-bold">
-                  {gap === 0 ? "Same price as you." : <>{price(Math.abs(gap))} <span className={gap > 0 ? "text-leaf" : "text-berry"}>{gap > 0 ? "more" : "less"}</span> than your shop.</>}
+                  {plot.businessType !== myTrade ? "Different trade: it does not compete for your shoppers." : gap === 0 ? "Same price as you." : <>{price(Math.abs(gap))} <span className={gap > 0 ? "text-leaf" : "text-berry"}>{gap > 0 ? "more" : "less"}</span> than your shop.</>}
                 </p>
               )}
             </section>

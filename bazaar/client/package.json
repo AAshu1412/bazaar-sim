@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check": "node scripts/economy.check.mjs"
   },
   "dependencies": {
     "@magicblock-labs/ephemeral-rollups-sdk": "^0.20.0",

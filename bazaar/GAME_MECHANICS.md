@@ -32,15 +32,15 @@ Verified locally (rollup validator 2.0.3 on an **Agave 4.2.2** base validator): 
 - Costs: plot 800 / 1,500 / 3,000 / 5,000 GD by tier (Alley / Side / Main / Corner). Business 2,000 coffee, 3,500 street food, 8,000 electronics, 2,500 flowers, 4,000 books. Upgrades 1,000 / 1,500 / 3,000 / 5,000.
 - Header "Cash Reserve" = your real on-chain GD balance when connected (otherwise a local simulated number). Header "Net Worth" when connected = GD + 5,000 + stock x 1.5 (a rough heuristic, not an on-chain value).
 
-## 5. How customers decide where to buy  [CLIENT-SIM]
-Every 1.2 s a townsperson spawns at a random gate and picks ONE shop (winner takes all) via `getBestShopForCustomer()` in `IsometricEngineV3.ts`:
-```
-utility = -price($) + 0.35 (if shop has Signage) + tierBonus (Corner 0.45, MainStreet 0.25, other 0.10) + random(-0.1..0.1)
-```
-Only claimed shops with stock >= 1 are candidates. The customer walks (A* over roads/sidewalks) to the shop door, pauses ~0.6 s, buys 1 unit at the shop's price, then walks to a random exit gate.
-Active city events change the spawn rate, the price weight or one stall's score (section 8b). NOT in the formula: reputation, Pyth/oracle signals, distance, product type, day/night. The noise is `Math.random`.
-Consequence: price differences above ~0.2 decide everything. At $2.75 on the Corner slot your shop wins nearly all customers; around $3.40 you lose most.
-A different, unused formula exists in `programs/bazaar/src/utils.rs` (`calculate_customer_utility`, cents-based, includes reputation and a VRF-noise argument). Nothing calls it.
+## 5. Days, shoppers and demand  [CLIENT-SIM]
+Rules live in `client/src/engine/economy.ts` (pure; `npm run check` tests them).
+- **Clock:** one day = 150 s, 06:00-22:00. The town darkens in the evening. Clock and crowd pause while the tab is hidden.
+- **Shoppers:** one every 0.75 s (city events change the rate). Each wants ONE trade, shown over their head, drawn from the hour's mix (coffee / food / electronics / flowers / books, %): morning rush 55/15/8/12/10, lunch 22/48/10/8/12, afternoon 28/14/24/10/24, evening 20/35/10/25/10.
+- **Budget:** the trade's going rate (coffee $3.00, food $3.40, electronics $3.20, flowers $3.05, books $3.00) x random 0.90-1.35. Supply scare raises it 15%, bargain frenzy lowers it 8%.
+- **Choice:** only shops of that trade, in stock and within budget. score = -price($) x event price weight + foot traffic (Corner 0.45, Main 0.25, Side 0.10, Alley 0) + 0.35 brand (signage; some rivals) + viral bonus + taste noise (-0.4..0.4). Highest wins; if none qualifies the shopper leaves.
+- **Overnight:** rivals restock to their opening stock and move price by $0.10: up if they sold 60%+ of it, down if 15% or less (kept within 85-130% of the going rate). Your shop is never changed.
+- NOT in the formula: reputation, Pyth/oracle signals, distance, day of week.
+- A different, unused formula exists in `programs/bazaar/src/utils.rs`. Nothing calls it.
 
 ## 6. How a sale becomes money  [ON-CHAIN, but triggered by the client]
 When a simulated customer buys from plot #0, the client calls `recordSale()`. Sales are batched (every ~2.5 s, up to 20) into one `serve_customers(count)` transaction. The program moves `price x n` GD from the treasury to your GD account, reduces stock by n, adds to revenue, and counts customers served. If stock is 0 it fails and the UI shows "sold out, restock".
@@ -87,6 +87,7 @@ Price tags above shops: coloured by owner type (you green, rival red, bots indig
 | Uncle Ravi's shop | Opens the guide card. |
 
 ## 12. Interface
+- **Reports:** per day (last 7, this visit only): cups sold, revenue, profit (revenue minus wholesale cost of cups sold), coffee market share, stock spend, shoppers by hour, where they went (each rival, too pricey, sold out), a price advisor (simulates 600 shoppers per price against current rivals) and profit by day. Lost on page refresh.
 - **Sound:** synthesised in `audio/sfx.ts` (coin on your sales, tap on buttons, chime for city events, gavel / fanfare for auctions). Silent until your first click.
 - **Top bar:** your GD (practice coins without a wallet), stock, price, live SOL/USD from Pyth, wallet, Settle (on the rollup), sound.
 - **Side buttons** (bottom bar on phones): My shop, Town, Auction, Guide.

@@ -4,6 +4,7 @@ import { Modal, PanelHead } from "./ui";
 import { useGameStore } from "../store/gameStore";
 import { gameChain, type AuctionOutcome } from "../solana/gameChain";
 import { sfx } from "../audio/sfx";
+import { useStats } from "../store/statsStore";
 import { InteriorBanner } from "./InteriorBanner";
 import { landmarkInterior } from "../engine/buildingRegistry";
 
@@ -44,6 +45,7 @@ export const AuctionModal: React.FC = () => {
     try {
       const result = await gameChain.auctionBid(bidInput, LOT_UNITS);
       setOutcome(result);
+      if (result.won) useStats.getState().spent(Math.round(result.bidGd * 100));
       setPhase("REVEAL");
       for (let i = 1; i <= 4; i++) {
         await new Promise((r) => setTimeout(r, 350));

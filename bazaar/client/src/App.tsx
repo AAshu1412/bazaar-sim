@@ -3,6 +3,9 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { Volume2, VolumeX, ZoomIn, ZoomOut, Maximize } from "lucide-react";
 import { IsometricEngineV3 } from "./engine/IsometricEngineV3";
 import { demandModifiers } from "./engine/cityEvents";
+import { clockAt, period } from "./engine/economy";
+import { Reports } from "./components/Reports";
+import { useStats, profitOf } from "./store/statsStore";
 import { PLACES, price, type PlaceId } from "./engine/shopKinds";
 import { EventBanner } from "./components/EventBanner";
 import { AuctionModal } from "./components/AuctionModal";
@@ -32,6 +35,8 @@ export const App: React.FC = () => {
 
   const [selected, setSelected] = useState<number | null>(null);
   const [boardOpen, setBoardOpen] = useState(false);
+  const [reportsOpen, setReportsOpen] = useState(false);
+  const [clock, setClock] = useState(() => clockAt(0));
   const [guideOpen, setGuideOpen] = useState(() => !localStorage.getItem(GUIDE_SEEN));
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -40,7 +45,7 @@ export const App: React.FC = () => {
   const say = (message: string) => {
     setToast(message);
     clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(null), 2600);
+    toastTimer.current = setTimeout(() => setToast(null), message.length > 50 ? 5500 : 2600);
   };
 
   const closeInspector = () => { setSelected(null); engineRef.current?.select(null); };
@@ -60,8 +65,8 @@ export const App: React.FC = () => {
   };
   const closeGuide = useCallback(() => { localStorage.setItem(GUIDE_SEEN, "1"); setGuideOpen(false); }, []);
   // engine callbacks are registered once, so they go through a ref to see fresh state
-  const handlers = useRef({ openShop, openPlace, closeInspector });
-  handlers.current = { openShop, openPlace, closeInspector };
+  const handlers = useRef({ openShop, openPlace, closeInspector, say });
+  handlers.current = { openShop, openPlace, closeInspector, say };
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -73,22 +78,42 @@ export const App: React.FC = () => {
     engine.onPlotClick = (plot) => handlers.current.openShop(plot.id);
     engine.onLandmarkClick = (id) => handlers.current.openPlace(id as PlaceId);
     engine.onEmptyClick = () => handlers.current.closeInspector();
+    engine.onShopper = (hour, outcome, rival) => useStats.getState().shopper(hour, outcome, rival);
+    engine.onTurnedAway = () => useStats.getState().turnedAway();
     engine.onCustomerServed = (plotId, priceCents) => {
       if (plotId !== 0) return;
+      const c = gameChain.getState();
+      useStats.getState().sale(priceCents, c.phase === "live" ? c.unitCostCents : PRACTICE_UNIT_COST * 100);
       if (gameChain.live) gameChain.recordSale(); // paid on-chain from the town treasury in small batches
       else setPracticeGd((gd) => gd + priceCents / 100);
     };
     return () => engine.destroy();
   }, []);
 
-  // townspeople arrive every 1.1 s (city events change the rate)
+  // the town's clock and crowd; both pause while the tab is hidden
   useEffect(() => {
-    let owed = 0;
+    let owed = 0, seconds = 0, day = 1;
     const spawner = setInterval(() => {
+      if (document.hidden) return;
       for (owed += demandModifiers(useGameStore.getState().activeEvent).customersPerTick; owed >= 1; owed--) engineRef.current?.spawnCustomer();
-    }, 1100);
-    const redraw = setInterval(() => setTick((t) => t + 1), 500);
-    return () => { clearInterval(spawner); clearInterval(redraw); };
+    }, 750);
+    const ticker = setInterval(() => {
+      setTick((t) => t + 1);
+      const engine = engineRef.current;
+      if (document.hidden || !engine?.plots.length) return;
+      const now = clockAt((seconds += 0.5));
+      engine.hour = now.hour;
+      engine.setDaylight(now.hour < 8 ? 0.18 : now.hour < 17 ? 0 : Math.min(0.42, (now.hour - 16) * 0.08));
+      if (now.day !== day) {
+        day = now.day;
+        const yesterday = useStats.getState().days.at(-1)!;
+        useStats.getState().startDay(day);
+        const repriced = engine.newDay();
+        handlers.current.say(`Day ${day}: yesterday's profit ${(profitOf(yesterday) / 100).toFixed(2)} GD. Rivals restocked, ${repriced} changed price.`);
+      }
+      setClock((c) => (c.day === now.day && c.hour === now.hour ? c : now));
+    }, 500);
+    return () => { clearInterval(spawner); clearInterval(ticker); };
   }, []);
 
   useEffect(() => { sfx.enabled = soundEnabled; }, [soundEnabled]);
@@ -158,7 +183,7 @@ export const App: React.FC = () => {
   const shops = (engineRef.current?.plots ?? []).filter((p) => p.ownerType !== "unclaimed");
   const mine = shops.find((p) => p.id === 0);
   const plot = selected === null ? null : engineRef.current?.plots.find((p) => p.id === selected) ?? null;
-  const rivals = shops.filter((p) => p.id !== selected && p.id !== 0 && p.inventory > 0).sort((a, b) => a.priceCents - b.priceCents);
+  const rivals = shops.filter((p) => p.id !== 0 && p.businessType === mine?.businessType && p.inventory > 0).sort((a, b) => a.priceCents - b.priceCents);
   const gd = live ? chain.gd : practiceGd;
   const stockCap = live ? 200 * (chain.upgrades & 2 ? 2 : 1) : mine?.maxInventory ?? 100;
   const restockCost = Math.round((live ? chain.unitCostCents / 100 : PRACTICE_UNIT_COST) * RESTOCK_UNITS * 100) / 100;
@@ -171,8 +196,10 @@ export const App: React.FC = () => {
   };
   const failed = (what: string) => (e: unknown) => say(`${what} failed: ${String((e as { message?: string })?.message ?? e).slice(0, 90)}`);
   const restock = () => {
-    if (live) return gameChain.restock(RESTOCK_UNITS).catch(failed("Restock"));
+    const booked = () => useStats.getState().spent(Math.round(restockCost * 100));
+    if (live) return gameChain.restock(RESTOCK_UNITS).then(booked, failed("Restock"));
     if (!mine) return;
+    booked();
     setPracticeGd((g) => g - restockCost);
     engineRef.current?.updatePlotData(0, { inventory: mine.inventory + RESTOCK_UNITS });
   };
@@ -186,12 +213,13 @@ export const App: React.FC = () => {
   const dock = [
     { icon: "coffee", name: "My shop", onClick: () => openShop(0) },
     { icon: "pin", name: "Town", onClick: () => { closeInspector(); setBoardOpen(true); } },
+    { icon: "chart", name: "Reports", onClick: () => { closeInspector(); setReportsOpen(true); } },
     { icon: "gavel", name: "Auction", onClick: () => openPlace("auction") },
     { icon: "help", name: "Guide", onClick: () => setGuideOpen(true) },
   ];
   const steps = [
-    { title: "This is your coffee shop", body: "You own the corner plot marked YOUR SHOP. Townspeople walk in from the gates and buy from whichever shop is the best deal.", action: { label: "Show me", run: () => openShop(0) } },
-    { title: "Price it to win", body: "Cheaper shops, corner plots and signage draw more shoppers. Open your shop and nudge the price, then watch where people walk.", action: { label: "Open price", run: () => openShop(0) } },
+    { title: "This is your coffee shop", body: "You own the corner plot marked YOUR SHOP. Each shopper wants one thing, shown over their head. Coffee drinkers pick between you and the other coffee houses.", action: { label: "Show me", run: () => openShop(0) } },
+    { title: "Price it to win", body: "Too dear and shoppers leave; too cheap and you earn little. Reports shows where they went and suggests a price.", action: { label: "Open price", run: () => openShop(0) } },
     { title: "Play for real on devnet", body: "Select Wallet (top right), then Start session. That is the only approval: every move after it is signed for you." },
     { title: "Never run dry", body: "Restock from your shop, or bid for a bigger lot at the Town Hall auction. The Town button lists every shop and building.", action: { label: "Town board", run: () => setBoardOpen(true) } },
   ];
@@ -205,7 +233,8 @@ export const App: React.FC = () => {
           <Badge icon="coffee" size={40} />
           <div>
             <h1 className="font-display text-xl font-bold leading-none tracking-wide">Bazaar</h1>
-            <p className="text-xs font-bold text-paper/80">{live ? (chain.erMode ? "Live · Ephemeral Rollup" : "Live · Solana devnet") : "Practice mode"}</p>
+            <p className="text-xs font-bold tabular-nums text-paper/80" title={period(clock.hour).name}>Day {clock.day} · {String(clock.hour).padStart(2, "0")}:00 · {live ? (chain.erMode ? "Rollup" : "Devnet") : "Practice"}</p>
+            <p className="text-[11px] font-extrabold text-gold">{period(clock.hour).name}</p>
           </div>
         </div>
 
@@ -233,9 +262,9 @@ export const App: React.FC = () => {
         </div>
       </header>
 
-      <nav aria-label="Main" className="fixed left-4 top-[92px] z-30 flex flex-col gap-3 max-sm:bottom-3 max-sm:left-1/2 max-sm:top-auto max-sm:-translate-x-1/2 max-sm:flex-row">
+      <nav aria-label="Main" className="fixed left-4 top-[104px] z-30 flex flex-col gap-3 max-sm:bottom-3 max-sm:left-1/2 max-sm:top-auto max-sm:-translate-x-1/2 max-sm:flex-row max-sm:gap-2">
         {dock.map((d) => (
-          <button key={d.name} onClick={d.onClick} className="btn !h-[72px] !w-[72px] flex-col !gap-0.5 !px-0">
+          <button key={d.name} onClick={d.onClick} className="btn !h-[68px] !w-[72px] flex-col !gap-0.5 !px-0 max-sm:!w-[62px]">
             <Badge icon={d.icon} size={38} />
             <span className="text-xs">{d.name}</span>
           </button>
@@ -265,6 +294,7 @@ export const App: React.FC = () => {
           plot={plot}
           rivals={rivals}
           myPriceCents={mine?.priceCents ?? 0}
+          myTrade={mine?.businessType ?? "CoffeeCart"}
           gd={gd}
           restockCostGd={restockCost}
           stockCap={stockCap}
@@ -278,6 +308,9 @@ export const App: React.FC = () => {
       )}
       {boardOpen && (
         <TownBoard shops={shops} onClose={() => setBoardOpen(false)} onShop={openShop} onPlace={(id) => { engineRef.current?.focusPlace(id); openPlace(id); }} />
+      )}
+      {reportsOpen && (
+        <Reports sellers={engineRef.current?.sellers() ?? []} unitCostCents={live ? chain.unitCostCents : PRACTICE_UNIT_COST * 100} onSetPrice={reprice} onClose={() => setReportsOpen(false)} />
       )}
       <AuctionModal />
     </div>

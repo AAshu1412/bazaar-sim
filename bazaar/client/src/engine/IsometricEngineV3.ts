@@ -5,6 +5,7 @@ import { TOWN, GRID as TOWN_GRID, type Lot, type TileKind } from "./townLayout";
 import { GridPathfinder, Point } from "./pathfinding";
 import { sfx } from "../audio/sfx";
 import { demandModifiers } from "./cityEvents";
+import { OPEN_HOUR, pickTrade, chooseShop, outcomeFor, nextRivalPrice, type Seller, type Trade, type Outcome } from "./economy";
 import { useGameStore } from "../store/gameStore";
 import { PLACES, shopKind, uiIcon, price, type PlaceId } from "./shopKinds";
 import { createSign, drawShopSign, drawPlaceSign, drawLeaseSign, label, SIGN_FONT, type Sign } from "./signs";
@@ -32,6 +33,9 @@ export interface PlotInfo {
   container: PIXI.Container;
   sign?: Sign;
   haloGraphic?: PIXI.Graphics;
+  /** stock the shop opens each day with, and its sales count at that moment */
+  openingStock: number;
+  servedAtOpen: number;
 }
 
 export interface LandmarkInfo {
@@ -106,8 +110,13 @@ export class IsometricEngineV3 {
   public onLandmarkClick?: (modal: string) => void;
   public onCustomerServed?: (plotId: number, priceCents: number) => void;
   public onEmptyClick?: () => void;
+  /** someone wanted your trade: where did they go? */
+  public onShopper?: (hour: number, outcome: Outcome, rival?: string) => void;
+  public onTurnedAway?: () => void;
+  public hour = OPEN_HOUR;
 
-  private isNight: boolean = false;
+  private darkness = 0;
+  private lastGrumble = 0;
   private nightFilter: PIXI.Graphics = new PIXI.Graphics();
   private haloPulseTimer: number = 0;
   private destroyed = false;
@@ -212,6 +221,7 @@ export class IsometricEngineV3 {
     if (parent) {
       this.app.renderer.resize(parent.clientWidth, parent.clientHeight);
       this.viewport.resize(parent.clientWidth, parent.clientHeight);
+      this.drawNight();
     }
   };
 
@@ -237,7 +247,7 @@ export class IsometricEngineV3 {
   private async preloadTextures() {
     const allUrls = new Set<string>();
 
-    for (const n of ["coffee", "food", "tech", "flower", "book", "gavel", "bank", "eye", "mask", "clerk", "help"]) allUrls.add(uiIcon(n));
+    for (const n of ["coffee", "food", "tech", "flower", "book", "gavel", "bank", "eye", "mask", "clerk", "help", "chart"]) allUrls.add(uiIcon(n));
     for (let i = 0; i < 6; i++) allUrls.add(`/assets/people/person${i}.png`);
 
     Object.values(BUILDING_SPRITES.businesses).forEach((bz) => {
@@ -479,7 +489,7 @@ export class IsometricEngineV3 {
     TOWN.plotSlots.forEach((slot, id) => {
       const o = owners[id];
       const bType = o.type ?? types[id % types.length];
-      const isUpgraded = id === 0 || id % 4 === 0; // shopper bonus; your shop still draws the basic building
+      const isUpgraded = id !== 0 && id % 4 === 0; // a few rivals have a stronger brand; yours comes from signage
       const bConfig = BUILDING_SPRITES.businesses[bType as keyof typeof BUILDING_SPRITES.businesses] || BUILDING_SPRITES.businesses.CoffeeCart;
       const spritePath = o.ownerType === "unclaimed" ? BUILDING_SPRITES.businesses.Vacant.base : (isUpgraded && id !== 0 ? bConfig.upgraded : bConfig.base);
 
@@ -497,6 +507,8 @@ export class IsometricEngineV3 {
         priceCents: o.priceCents,
         inventory: o.inventory,
         maxInventory: 100,
+        openingStock: o.inventory,
+        servedAtOpen: 0,
         isMarginCalled: false,
         customersServed: 0,
         revenueTodayCents: 0,
@@ -596,41 +608,32 @@ export class IsometricEngineV3 {
     return { container, sprite };
   }
 
-  /**
-   * Utility Score Calculation for All Open Shops
-   * utility = -price + (brand_tolerance * price) + traffic_bonus + vrf_noise
-   */
-  public getBestShopForCustomer(): PlotInfo | null {
-    const availablePlots = this.plots.filter((p) => p.ownerType !== "unclaimed" && p.inventory > 0);
-    if (availablePlots.length === 0) return null;
-
-    let bestPlot: PlotInfo = availablePlots[0];
-    let highestUtility = -Infinity;
-    const { activeEvent, eventTarget } = useGameStore.getState();
-    const event = demandModifiers(activeEvent);
-    const viral = availablePlots[eventTarget % availablePlots.length];
-
-    availablePlots.forEach((plot) => {
-      const priceFactor = -(plot.priceCents / 100) * event.priceWeight;
-      const brandBonus = plot.isUpgraded ? 0.35 : 0;
-      const tierBonus = plot.tier === "Corner" ? 0.45 : plot.tier === "MainStreet" ? 0.25 : 0.1;
-      const noise = (Math.random() - 0.5) * 0.2;
-
-      const utility = priceFactor + brandBonus + tierBonus + noise + (plot === viral ? event.viralBonus : 0);
-      if (utility > highestUtility) {
-        highestUtility = utility;
-        bestPlot = plot;
-      }
-    });
-
-    return bestPlot;
+  /** open shops as the demand model sees them */
+  public sellers(): Seller[] {
+    return this.plots.filter((p) => p.ownerType !== "unclaimed")
+      .map((p) => ({ id: p.id, type: p.businessType, priceCents: p.priceCents, stock: p.inventory, tier: p.tier, brand: p.isUpgraded }));
   }
 
-  /**
-   * Guaranteed Active Spawner: Spawns customer NPC at cardinal city gates
-   */
+  /** One shopper arrives wanting something (it depends on the hour) and picks a shop, or leaves. */
   public spawnCustomer() {
-    const targetPlot = this.getBestShopForCustomer();
+    const sellers = this.sellers(), me = sellers.find((s) => s.id === 0);
+    if (!me) return;
+    const want: Trade = pickTrade(this.hour, Math.random);
+    const { activeEvent, eventTarget } = useGameStore.getState();
+    const mods = demandModifiers(activeEvent), inStock = sellers.filter((s) => s.stock > 0);
+    const viralId = inStock.length ? inStock[eventTarget % inStock.length].id : null;
+    const choice = chooseShop(sellers, want, { priceWeight: mods.priceWeight, viralId, viralBonus: mods.viralBonus }, Math.random);
+
+    if (want === me.type) {
+      const outcome = outcomeFor(me, choice);
+      this.onShopper?.(this.hour, outcome, choice.winner ? this.plots[choice.winner.id].owner ?? undefined : undefined);
+      if (outcome === "price" && performance.now() - this.lastGrumble > 4000) {
+        this.lastGrumble = performance.now();
+        const p = this.plots[0].container;
+        this.spawnFloatingText(p.x, p.y + 20, "Too pricey!", 0xff8a75);
+      }
+    }
+    const targetPlot = choice.winner && this.plots[choice.winner.id];
     if (!targetPlot) return;
 
     const spawnGate = this.GATES[Math.floor(Math.random() * this.GATES.length)];
@@ -648,6 +651,12 @@ export class IsometricEngineV3 {
     person.anchor.set(0.5, 0.9);
     person.scale.set(0.34);
     container.addChild(person);
+    // a little bubble showing what they came for
+    const wants = PIXI.Sprite.from(uiIcon(shopKind(want).icon));
+    wants.anchor.set(0.5);
+    wants.setSize(15, 15);
+    wants.position.set(0, -33);
+    container.addChild(wants);
     container.zIndex = iso.y + 10;
     this.entitiesLayer.addChild(container);
 
@@ -732,7 +741,10 @@ export class IsometricEngineV3 {
             }
           } else {
             // Plot is sold out!
-            if (plot.ownerType === "player") this.spawnFloatingText(npc.container.x, npc.container.y - 40, "Sold out!", 0xff8a75);
+            if (plot.ownerType === "player") {
+              this.spawnFloatingText(npc.container.x, npc.container.y - 40, "Sold out!", 0xff8a75);
+              this.onTurnedAway?.();
+            }
             this.buildSign(plot);
           }
 
@@ -852,13 +864,31 @@ export class IsometricEngineV3 {
     });
   }
 
-  public setNightMode(night: boolean) {
-    this.isNight = night;
-    this.nightFilter.clear();
-    if (night && this.app) {
-      this.nightFilter.rect(0, 0, this.app.screen.width, this.app.screen.height);
-      this.nightFilter.fill({ color: 0x06091c, alpha: 0.6 });
+  /** Morning: every rival restocks and moves its price according to how yesterday went. Returns how many repriced. */
+  public newDay() {
+    let repriced = 0;
+    for (const p of this.plots) {
+      if (p.ownerType === "player" || p.ownerType === "unclaimed") continue;
+      const next = nextRivalPrice(p.priceCents, p.customersServed - p.servedAtOpen, p.openingStock, p.businessType as Trade);
+      if (next !== p.priceCents) repriced++;
+      p.priceCents = next;
+      p.inventory = p.openingStock;
+      p.servedAtOpen = p.customersServed;
+      this.buildSign(p);
     }
+    return repriced;
+  }
+
+  /** 0 = noon, 0.45 = late evening */
+  public setDaylight(darkness: number) {
+    if (darkness === this.darkness || !this.app) return;
+    this.darkness = darkness;
+    this.drawNight();
+  }
+  private drawNight() {
+    if (!this.app) return;
+    this.nightFilter.clear();
+    if (this.darkness > 0) this.nightFilter.rect(0, 0, this.app.screen.width, this.app.screen.height).fill({ color: 0x0b1030, alpha: this.darkness });
   }
 
   public updatePlotData(plotId: number, data: Partial<PlotInfo>) {

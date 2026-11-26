@@ -10,7 +10,7 @@ fs.mkdirSync(ui, { recursive: true }); fs.mkdirSync(people, { recursive: true })
 const O = "#2a1c15";
 const png = (path, svg, width) => fs.writeFileSync(path, new Resvg(svg, { fitTo: { mode: "width", value: width } }).render().asPng());
 
-const BADGES = { coffee: "#8a4a2c", food: "#d0452f", tech: "#2c8f9a", flower: "#c53f74", book: "#2f5f86", gavel: "#8a4a2c", bank: "#3f7a55", eye: "#6b4aa0", mask: "#b5402f", clerk: "#56647f", help: "#c9742f", pin: "#3f6fb5", coin: "#a8721f", crate: "#7a4a28", people: "#3f7a55", tag: "#b5402f" };
+const BADGES = { coffee: "#8a4a2c", food: "#d0452f", tech: "#2c8f9a", flower: "#c53f74", book: "#2f5f86", gavel: "#8a4a2c", bank: "#3f7a55", eye: "#6b4aa0", mask: "#b5402f", clerk: "#56647f", help: "#c9742f", pin: "#3f6fb5", coin: "#a8721f", crate: "#7a4a28", people: "#3f7a55", tag: "#b5402f", chart: "#3f6fb5" };
 for (const [name, c] of Object.entries(BADGES)) {
   png(`${ui}${name}.png`, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 -20 40 40"><circle r="18.2" fill="${c}" stroke="${O}" stroke-width="2.6"/><path d="M-13 -6A14 14 0 0 1 4 -14" fill="none" stroke="#fff" stroke-width="2" opacity=".35" stroke-linecap="round"/>${GLYPH[name]}</svg>`, 96);
 }

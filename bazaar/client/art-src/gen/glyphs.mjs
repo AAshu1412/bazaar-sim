@@ -20,5 +20,6 @@ export const GLYPH = {
   coin: dot(0, 0, 11, "#ffcf3f") + line("M3 -4q-7 -3 -6 4q1 7 6 4v-4h-3", I, 2),
   crate: s("M-11 -8H11V11H-11Z", 'style="fill:#d89a58"') + line("M-11 -8L11 11M11 -8L-11 11", I, 1.4) + line("M-11 -1H11", I, 1),
   people: dot(-5, -5, 4.5, "#fff") + s("M-12 11Q-12 1 -5 1Q2 1 2 11Z") + dot(7, -2, 3.6, "#fff") + s("M2 11Q2 4 7 4Q12 4 12 11Z"),
+  chart: s("M-11 2h6v10h-6ZM-3 -5h6v17h-6ZM5 -11h6v23H5Z"),
   tag: s("M-11 -11H2L12 -1L-1 12L-11 2Z") + dot(-5, -5, 2.2, "#b5402f"),
 };
