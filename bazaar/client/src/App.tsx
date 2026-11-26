@@ -231,7 +231,7 @@ export const App: React.FC = () => {
 
       <header className="pointer-events-none fixed inset-x-4 top-3 z-30 flex flex-wrap items-start justify-between gap-3">
         <div className="panel pointer-events-auto flex items-center gap-2 !bg-wood py-1.5 pl-2 pr-4 !text-paper">
-          <Badge icon="coffee" size={40} />
+          <img src="/logo/icon.svg" alt="" width={44} height={44} draggable={false} className="shrink-0" />
           <div>
             <h1 className="font-display text-xl font-bold leading-none tracking-wide">Bazaar</h1>
             <p className="text-xs font-bold tabular-nums text-paper/80" title={period(clock.hour).name}>Day {clock.day} · {String(clock.hour).padStart(2, "0")}:00 · {live ? (chain.erMode ? "Rollup" : "Devnet") : "Practice"}</p>

@@ -80,6 +80,12 @@ export const CONCEPTS = {
   },
 };
 
+// the chosen logo (A, the stall) goes to the app; the browser tab gets a simpler cut with just the awning and coin
+const FAVICON = tile(LEAF, `${coin(128, 164, 54, 10)}${awning(26, 54, 204, 62, 5, BERRY, PAPER, 10)}`);
+const app = `${here}../../public/logo/`;
+fs.mkdirSync(app, { recursive: true });
+for (const [file, art] of [["logo", CONCEPTS.stall.logo], ["icon", CONCEPTS.stall.icon], ["favicon", FAVICON]]) fs.writeFileSync(`${app}${file}.svg`, art);
+
 for (const [name, c] of Object.entries(CONCEPTS)) {
   fs.writeFileSync(`${here}${name}-logo.svg`, c.logo);
   fs.writeFileSync(`${here}${name}-icon.svg`, c.icon);

@@ -1,3 +1,5 @@
+<p align="center"><img src="client/public/logo/logo.svg" width="420" alt="Bazaar"></p>
+
 # 🏛️ Bazaar v2: The First Onchain Tycoon
 > *"A persistent 2.5D isometric neighborhood economy running on 8 load-bearing MagicBlock primitives."*
 > **Built for MagicBlock Solana Blitz v10 Hackathon**
