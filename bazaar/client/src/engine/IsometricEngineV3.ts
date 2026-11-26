@@ -5,9 +5,11 @@ import { TOWN, GRID as TOWN_GRID, type Lot, type TileKind } from "./townLayout";
 import { GridPathfinder, Point } from "./pathfinding";
 import { sfx } from "../audio/sfx";
 import { demandModifiers } from "./cityEvents";
-import { OPEN_HOUR, pickTrade, chooseShop, outcomeFor, nextRivalPrice, type Seller, type Trade, type Outcome } from "./economy";
+import { OPEN_HOUR, pickTrade, chooseShop, outcomeFor, nextRivalPrice, type Seller, type Trade } from "./economy";
+import type { ShopperRow } from "../store/statsStore";
 import { useGameStore } from "../store/gameStore";
 import { PLACES, shopKind, uiIcon, price, type PlaceId } from "./shopKinds";
+import { ROOF_TOPS } from "./roofTops";
 import { createSign, drawShopSign, drawPlaceSign, drawLeaseSign, label, SIGN_FONT, type Sign } from "./signs";
 
 export type PlotOwnerType = "player" | "rivalHuman" | "bot" | "unclaimed";
@@ -110,9 +112,9 @@ export class IsometricEngineV3 {
   public onLandmarkClick?: (modal: string) => void;
   public onCustomerServed?: (plotId: number, priceCents: number) => void;
   public onEmptyClick?: () => void;
-  /** someone wanted your trade: where did they go? */
-  public onShopper?: (hour: number, outcome: Outcome, rival?: string) => void;
-  public onTurnedAway?: () => void;
+  /** a shopper arrived: how it went for every shop selling what they wanted */
+  public onShopper?: (hour: number, rows: ShopperRow[]) => void;
+  public onTurnedAway?: (plotId: number) => void;
   public hour = OPEN_HOUR;
 
   private darkness = 0;
@@ -299,7 +301,7 @@ export class IsometricEngineV3 {
     ring.visible = false;
     container.addChildAt(ring, 0);
     sign.root.position.set(container.x, container.y + signY);
-    sign.root.zIndex = sign.root.y;
+    sign.root.zIndex = container.y;
     this.signLayer.addChild(sign.root);
     const t: Target = { key, container, sprite, ring, sign, onClick };
     this.targets.push(t);
@@ -318,7 +320,7 @@ export class IsometricEngineV3 {
       t.sign.compact.visible = compact;
       t.sign.tip.visible = hot;
       t.sign.root.scale.set(k * (hot ? 1.12 : 1));
-      t.sign.root.zIndex = hot || sel ? 1e6 : t.pinned ? 5e5 : t.sign.root.y;
+      t.sign.root.zIndex = hot || sel ? 1e6 : t.pinned ? 5e5 : t.container.y; // nearer lots on top
       t.sprite.y = this.TILE_H - (hot || sel ? 4 : 0);
       if (sel !== (t.ring.label === "sel") || hot !== t.ring.visible) {
         t.ring.label = sel ? "sel" : "";
@@ -439,7 +441,8 @@ export class IsometricEngineV3 {
         const { container, sprite } = this.addLotSprite(lot);
         const sign = createSign();
         drawPlaceSign(sign, place);
-        this.addTarget(place.id, container, sprite, sign, () => this.onLandmarkClick?.(place.id), -44);
+        const target = this.addTarget(place.id, container, sprite, sign, () => this.onLandmarkClick?.(place.id), -44);
+        target.onHoverOnly = place.soon; // unbuilt places stay out of the shop signs' way
         this.landmarks.push({ id: place.id, label: place.name, modal: place.id, gx: lot.gx, gy: lot.gy, sprite });
       });
 
@@ -545,7 +548,7 @@ export class IsometricEngineV3 {
 
     plot.sign = createSign();
     this.buildSign(plot);
-    const t = this.addTarget(`plot-${plot.id}`, container, sprite, plot.sign, () => this.onPlotClick?.(plot));
+    const t = this.addTarget(`plot-${plot.id}`, container, sprite, plot.sign, () => this.onPlotClick?.(plot), plot.ownerType === "unclaimed" ? undefined : this.roofY(spritePath));
     t.pinned = plot.ownerType === "player";
     t.onHoverOnly = plot.ownerType === "unclaimed";
 
@@ -556,6 +559,12 @@ export class IsometricEngineV3 {
     if (!plot.haloGraphic) return;
     plot.haloGraphic.clear();
     if (plot.ownerType === "player") this.diamond(plot.haloGraphic, 0x3fd68a, 0.22, 4);
+  }
+
+  /** where a shop's sign hangs: just above its own roof */
+  private roofY(spritePath: string) {
+    const name = spritePath.split("/").pop()!.replace(".png", "");
+    return this.TILE_H + ((ROOF_TOPS[name] ?? 110) - SPRITE_ANCHOR_Y * 256) * SPRITE_SCALE - 14;
   }
 
   private buildSign(plot: PlotInfo) {
@@ -624,14 +633,14 @@ export class IsometricEngineV3 {
     const viralId = inStock.length ? inStock[eventTarget % inStock.length].id : null;
     const choice = chooseShop(sellers, want, { priceWeight: mods.priceWeight, viralId, viralBonus: mods.viralBonus }, Math.random);
 
-    if (want === me.type) {
-      const outcome = outcomeFor(me, choice);
-      this.onShopper?.(this.hour, outcome, choice.winner ? this.plots[choice.winner.id].owner ?? undefined : undefined);
-      if (outcome === "price" && performance.now() - this.lastGrumble > 4000) {
-        this.lastGrumble = performance.now();
-        const p = this.plots[0].container;
-        this.spawnFloatingText(p.x, p.y + 20, "Too pricey!", 0xff8a75);
-      }
+    const nameOf = (id: number) => (id === 0 ? "Your shop" : this.plots[id].owner ?? "Rival");
+    this.onShopper?.(this.hour, sellers.filter((s) => s.type === want).map((s) => ({
+      id: s.id, priceCents: s.priceCents, outcome: outcomeFor(s, choice), rival: choice.winner ? nameOf(choice.winner.id) : undefined,
+    })));
+    if (want === me.type && outcomeFor(me, choice) === "price" && performance.now() - this.lastGrumble > 4000) {
+      this.lastGrumble = performance.now();
+      const p = this.plots[0].container;
+      this.spawnFloatingText(p.x, p.y + 20, "Too pricey!", 0xff8a75);
     }
     const targetPlot = choice.winner && this.plots[choice.winner.id];
     if (!targetPlot) return;
@@ -741,10 +750,8 @@ export class IsometricEngineV3 {
             }
           } else {
             // Plot is sold out!
-            if (plot.ownerType === "player") {
-              this.spawnFloatingText(npc.container.x, npc.container.y - 40, "Sold out!", 0xff8a75);
-              this.onTurnedAway?.();
-            }
+            if (plot.ownerType === "player") this.spawnFloatingText(npc.container.x, npc.container.y - 40, "Sold out!", 0xff8a75);
+            this.onTurnedAway?.(plot.id);
             this.buildSign(plot);
           }
 
@@ -899,7 +906,9 @@ export class IsometricEngineV3 {
     Object.assign(plot, data);
     if (data.isUpgraded !== undefined) {
       const b = BUILDING_SPRITES.businesses[plot.businessType as keyof typeof BUILDING_SPRITES.businesses];
-      plot.sprite.texture = PIXI.Assets.get(plot.isUpgraded ? b.upgraded : b.base);
+      const path = plot.isUpgraded ? b.upgraded : b.base;
+      plot.sprite.texture = PIXI.Assets.get(path);
+      if (plot.sign && plot.ownerType !== "unclaimed") plot.sign.root.y = plot.container.y + this.roofY(path);
     }
     this.refreshPlotHalo(plot);
     this.buildSign(plot);

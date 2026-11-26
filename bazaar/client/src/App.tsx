@@ -5,8 +5,8 @@ import { IsometricEngineV3 } from "./engine/IsometricEngineV3";
 import { demandModifiers } from "./engine/cityEvents";
 import { clockAt, period } from "./engine/economy";
 import { Reports } from "./components/Reports";
-import { useStats, profitOf } from "./store/statsStore";
-import { PLACES, price, type PlaceId } from "./engine/shopKinds";
+import { useStats, profitOf, shopOn } from "./store/statsStore";
+import { PLACES, price, shopKind, type PlaceId } from "./engine/shopKinds";
 import { EventBanner } from "./components/EventBanner";
 import { AuctionModal } from "./components/AuctionModal";
 import { CityLedger } from "./components/CityLedger";
@@ -35,7 +35,7 @@ export const App: React.FC = () => {
 
   const [selected, setSelected] = useState<number | null>(null);
   const [boardOpen, setBoardOpen] = useState(false);
-  const [reportsOpen, setReportsOpen] = useState(false);
+  const [reportsFor, setReportsFor] = useState<number | null>(null); // plot whose analytics are open
   const [clock, setClock] = useState(() => clockAt(0));
   const [guideOpen, setGuideOpen] = useState(() => !localStorage.getItem(GUIDE_SEEN));
   const [toast, setToast] = useState<string | null>(null);
@@ -78,12 +78,12 @@ export const App: React.FC = () => {
     engine.onPlotClick = (plot) => handlers.current.openShop(plot.id);
     engine.onLandmarkClick = (id) => handlers.current.openPlace(id as PlaceId);
     engine.onEmptyClick = () => handlers.current.closeInspector();
-    engine.onShopper = (hour, outcome, rival) => useStats.getState().shopper(hour, outcome, rival);
-    engine.onTurnedAway = () => useStats.getState().turnedAway();
+    engine.onShopper = (hour, rows) => useStats.getState().shopper(hour, rows);
+    engine.onTurnedAway = (plotId) => useStats.getState().turnedAway(plotId);
     engine.onCustomerServed = (plotId, priceCents) => {
-      if (plotId !== 0) return;
       const c = gameChain.getState();
-      useStats.getState().sale(priceCents, c.phase === "live" ? c.unitCostCents : PRACTICE_UNIT_COST * 100);
+      useStats.getState().sale(plotId, priceCents, plotId !== 0 ? 0 : c.phase === "live" ? c.unitCostCents : PRACTICE_UNIT_COST * 100);
+      if (plotId !== 0) return;
       if (gameChain.live) gameChain.recordSale(); // paid on-chain from the town treasury in small batches
       else setPracticeGd((gd) => gd + priceCents / 100);
     };
@@ -109,7 +109,7 @@ export const App: React.FC = () => {
         const yesterday = useStats.getState().days.at(-1)!;
         useStats.getState().startDay(day);
         const repriced = engine.newDay();
-        handlers.current.say(`Day ${day}: yesterday's profit ${(profitOf(yesterday) / 100).toFixed(2)} GD. Rivals restocked, ${repriced} changed price.`);
+        handlers.current.say(`Day ${day}: yesterday's profit ${(profitOf(shopOn(yesterday, 0)) / 100).toFixed(2)} GD. Rivals restocked, ${repriced} changed price.`);
       }
       setClock((c) => (c.day === now.day && c.hour === now.hour ? c : now));
     }, 500);
@@ -118,7 +118,7 @@ export const App: React.FC = () => {
 
   useEffect(() => { sfx.enabled = soundEnabled; }, [soundEnabled]);
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && handlers.current.closeInspector();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !document.querySelector('[role="dialog"]') && handlers.current.closeInspector();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
@@ -205,6 +205,7 @@ export const App: React.FC = () => {
   };
   const upgrade = () => gameChain.buyUpgrade(1, "Signage (+15% traffic)").catch(failed("Signage"));
 
+  const reported = reportsFor === null ? null : engineRef.current?.plots[reportsFor];
   const stats = [
     { icon: "coin", name: live ? "Your GD" : "Practice GD", value: gd.toLocaleString(undefined, { maximumFractionDigits: 2 }) },
     { icon: "crate", name: "Stock", value: mine ? (mine.inventory === 0 ? "Out!" : String(mine.inventory)) : "…", warn: mine?.inventory === 0 },
@@ -213,7 +214,7 @@ export const App: React.FC = () => {
   const dock = [
     { icon: "coffee", name: "My shop", onClick: () => openShop(0) },
     { icon: "pin", name: "Town", onClick: () => { closeInspector(); setBoardOpen(true); } },
-    { icon: "chart", name: "Reports", onClick: () => { closeInspector(); setReportsOpen(true); } },
+    { icon: "chart", name: "Reports", onClick: () => { closeInspector(); setReportsFor(0); } },
     { icon: "gavel", name: "Auction", onClick: () => openPlace("auction") },
     { icon: "help", name: "Guide", onClick: () => setGuideOpen(true) },
   ];
@@ -290,11 +291,13 @@ export const App: React.FC = () => {
 
       {plot && (
         <PlotInspector
-          key={plot.id}
+          key={`panel-${plot.id}`}
           plot={plot}
           rivals={rivals}
           myPriceCents={mine?.priceCents ?? 0}
           myTrade={mine?.businessType ?? "CoffeeCart"}
+          today={shopOn(useStats.getState().days.at(-1)!, plot.id)}
+          onStats={() => setReportsFor(plot.id)}
           gd={gd}
           restockCostGd={restockCost}
           stockCap={stockCap}
@@ -309,8 +312,20 @@ export const App: React.FC = () => {
       {boardOpen && (
         <TownBoard shops={shops} onClose={() => setBoardOpen(false)} onShop={openShop} onPlace={(id) => { engineRef.current?.focusPlace(id); openPlace(id); }} />
       )}
-      {reportsOpen && (
-        <Reports sellers={engineRef.current?.sellers() ?? []} unitCostCents={live ? chain.unitCostCents : PRACTICE_UNIT_COST * 100} onSetPrice={reprice} onClose={() => setReportsOpen(false)} />
+      {reported && (
+        <Reports
+          key={`report-${reported.id}`}
+          shop={{
+            id: reported.id,
+            type: reported.businessType,
+            name: reported.id === 0 ? "Corner Roast" : shopKind(reported.businessType).name,
+            sub: reported.id === 0 ? "Your shop" : `Run by ${reported.owner}`,
+          }}
+          sellers={engineRef.current?.sellers() ?? []}
+          unitCostCents={live ? chain.unitCostCents : PRACTICE_UNIT_COST * 100}
+          onSetPrice={reprice}
+          onClose={() => setReportsFor(null)}
+        />
       )}
       <AuctionModal />
     </div>

@@ -87,11 +87,11 @@ Price tags above shops: coloured by owner type (you green, rival red, bots indig
 | Uncle Ravi's shop | Opens the guide card. |
 
 ## 12. Interface
-- **Reports:** per day (last 7, this visit only): cups sold, revenue, profit (revenue minus wholesale cost of cups sold), coffee market share, stock spend, shoppers by hour, where they went (each rival, too pricey, sold out), a price advisor (simulates 600 shoppers per price against current rivals) and profit by day. Lost on page refresh.
+- **Shop analytics:** every shop panel shows today's sales, revenue and market share, with "Open analytics" (the Reports button opens yours). Per day (last 7, this visit only): sales, revenue, share of its trade, shoppers by hour, where they went, and price/sales by day. Yours also has profit (revenue minus wholesale cost of units sold), stock spend and a price advisor (600 simulated shoppers per price). Lost on page refresh.
 - **Sound:** synthesised in `audio/sfx.ts` (coin on your sales, tap on buttons, chime for city events, gavel / fanfare for auctions). Silent until your first click.
 - **Top bar:** your GD (practice coins without a wallet), stock, price, live SOL/USD from Pyth, wallet, Settle (on the rollup), sound.
 - **Side buttons** (bottom bar on phones): My shop, Town, Auction, Guide.
-- **Map signs:** every claimed shop has a board with its type icon, price and stock bar (icon only when zoomed far out; hover shows the shop type). Public buildings have name boards, greyed "soon" if unbuilt. Empty lots show "For lease" on hover.
+- **Map signs:** every claimed shop has exactly one sign, above its roof: type icon, price and stock bar (icon only when zoomed far out; hover shows the shop type). Town Hall and Uncle Ravi have name boards; unbuilt buildings show a greyed "soon" board on hover. Empty lots show "For lease" on hover.
 - **Shop panel:** price stepper and slider, how many rivals you undercut, stock, restock, signage. Rivals show their price against yours.
 - **Town board:** all shops cheapest first (price, stock, sales seen this visit) and a list of places.
 - **Guide:** Uncle Ravi's 4-step card; opens on first visit, never blocks the town.

@@ -41,7 +41,9 @@ export function drawShopSign(sign: Sign, o: { name: string; icon: string; price:
   sign.tip.addChild(new PIXI.Graphics().roundRect(-tw / 2, ty - 11, tw, 22, 8).fill({ color: INK }), tipText);
   const w = 88, soldOut = o.stock <= 0;
   sign.width = w;
-  sign.full.addChild(board(-w / 2, w, 32, soldOut ? BERRY : o.mine ? GOLD : PAPER));
+  const fill = soldOut ? BERRY : o.mine ? GOLD : PAPER;
+  sign.full.addChild(new PIXI.Graphics().poly([-8, 13, 8, 13, 0, 25]).fill({ color: fill }).stroke({ width: 2.5, color: INK, join: "round" })); // points at its shop
+  sign.full.addChild(board(-w / 2, w, 32, fill));
   const t = label(soldOut ? "Sold out" : o.price, soldOut ? 13 : 15, soldOut ? PAPER : INK);
   t.position.set(-w / 2 + 27, soldOut ? 0 : -4);
   sign.full.addChild(t);

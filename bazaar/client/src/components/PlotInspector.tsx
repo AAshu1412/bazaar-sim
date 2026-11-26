@@ -4,7 +4,8 @@ import type { PlotInfo } from "../engine/IsometricEngineV3";
 import { InteriorBanner } from "./InteriorBanner";
 import { interiorFor } from "../engine/buildingRegistry";
 import { shopKind, price } from "../engine/shopKinds";
-import { Meter, PanelHead } from "./ui";
+import { Badge, Meter, PanelHead } from "./ui";
+import type { ShopDay } from "../store/statsStore";
 
 const TIERS = { Corner: "Corner plot", MainStreet: "Main Street", SideStreet: "Side Street", Alley: "Alley" } as const;
 export const MIN_PRICE = 100, MAX_PRICE = 600;
@@ -16,6 +17,9 @@ interface Props {
   rivals: PlotInfo[];
   myPriceCents: number;
   myTrade: string;
+  /** this shop's books so far today */
+  today: ShopDay;
+  onStats: () => void;
   /** your GD (wallet balance when playing on-chain, practice coins otherwise) */
   gd: number;
   restockCostGd: number;
@@ -29,7 +33,7 @@ interface Props {
   onUpgrade: () => Promise<unknown> | void;
 }
 
-export const PlotInspector: React.FC<Props> = ({ plot, rivals, myPriceCents, myTrade, gd, restockCostGd, stockCap, live, signage, onClose, onReprice, onRestock, onUpgrade }) => {
+export const PlotInspector: React.FC<Props> = ({ plot, rivals, myPriceCents, myTrade, today, onStats, gd, restockCostGd, stockCap, live, signage, onClose, onReprice, onRestock, onUpgrade }) => {
   const [busy, setBusy] = useState<"restock" | "upgrade" | null>(null);
   const run = async (id: "restock" | "upgrade", fn: () => Promise<unknown> | void) => {
     if (busy) return;
@@ -102,6 +106,22 @@ export const PlotInspector: React.FC<Props> = ({ plot, rivals, myPriceCents, myT
                 <span className="tabular-nums">{plot.inventory === 0 ? "Sold out" : `${plot.inventory} left`}</span>
               </div>
               <Meter label="Stock" value={plot.inventory} max={mine ? stockCap : plot.maxInventory} />
+            </section>
+
+            <section aria-label="Today" className="well p-2">
+              <dl className="grid grid-cols-3 text-center">
+                {[
+                  ["Sales today", String(today.sold)],
+                  ["Revenue", `${(today.revenue / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })} GD`],
+                  ["Share", today.wanted ? `${Math.round((today.won / today.wanted) * 100)}%` : "—"],
+                ].map(([k, v]) => (
+                  <div key={k}>
+                    <dt className="text-[11px] font-extrabold text-soft">{k}</dt>
+                    <dd className="font-display text-base font-semibold tabular-nums">{v}</dd>
+                  </div>
+                ))}
+              </dl>
+              <button className="btn mt-2 w-full" onClick={onStats}><Badge icon="chart" size={24} /> Open analytics</button>
             </section>
 
             {mine && (
