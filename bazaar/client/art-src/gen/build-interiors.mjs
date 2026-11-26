@@ -3,7 +3,9 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Resvg } from "@resvg/resvg-js";
 import { Room } from "./interior.mjs";
-import { INTERIORS } from "./interiors.mjs";
+import { INTERIORS as OLD_ROOMS } from "./interiors.mjs";
+import { ROOMS } from "./rooms.mjs"; // the rooms the game shows replace the older drafts
+const INTERIORS = { ...OLD_ROOMS, ...ROOMS };
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const svgDir = `${here}../project/interior/`, pngDir = `${here}../../public/assets/interior/`;

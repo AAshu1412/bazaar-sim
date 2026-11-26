@@ -77,7 +77,7 @@ export const AuctionModal: React.FC = () => {
     <Modal label="Wholesale auction" onClose={handleClose}>
       <PanelHead icon="gavel" title="Wholesale auction" sub={`Win ${LOT_UNITS} units of stock · rivals drawn by MagicBlock VRF`} onClose={handleClose} />
       <div className="space-y-4 overflow-y-auto p-4">
-        <InteriorBanner src={landmarkInterior("town-hall")} alt="Auction hall" className="!aspect-[3/1]" />
+        <InteriorBanner src={landmarkInterior("town-hall")} alt="Auction hall" className="!aspect-[5/2]" />
 
         <dl className="grid grid-cols-3 gap-2 text-center">
           {[
