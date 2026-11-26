@@ -203,7 +203,7 @@ export const App: React.FC = () => {
     setPracticeGd((g) => g - restockCost);
     engineRef.current?.updatePlotData(0, { inventory: mine.inventory + RESTOCK_UNITS });
   };
-  const upgrade = () => gameChain.buyUpgrade(1, "Signage (+15% traffic)").catch(failed("Signage"));
+  const upgrade = () => gameChain.buyUpgrade(1, "Signage (stronger brand)").catch(failed("Signage"));
 
   const reported = reportsFor === null ? null : engineRef.current?.plots[reportsFor];
   const stats = [
