@@ -8,7 +8,8 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "check": "node scripts/economy.check.mjs",
-    "voice": "node scripts/voice-script.mjs"
+    "voice": "node scripts/voice-script.mjs",
+    "voice:audio": "node --env-file=.env scripts/voice-generate.mjs"
   },
   "dependencies": {
     "@magicblock-labs/ephemeral-rollups-sdk": "^0.20.0",
