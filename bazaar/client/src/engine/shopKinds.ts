@@ -21,3 +21,5 @@ export type PlaceId = (typeof PLACES)[number]["id"];
 
 export const uiIcon = (name: string) => `/assets/ui/${name}.png`;
 export const price = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+/** the player's money (1 GD = $1 in game): "$5,016.5", "-$27.4" */
+export const money = (gd: number) => `${gd < 0 ? "-" : ""}$${Math.abs(gd).toLocaleString("en-US", { minimumFractionDigits: Math.round(gd * 100) % 100 ? 2 : 0, maximumFractionDigits: 2 })}`;

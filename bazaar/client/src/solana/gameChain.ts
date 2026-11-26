@@ -16,6 +16,7 @@ import {
 } from "@magicblock-labs/ephemeral-rollups-sdk";
 import { PROGRAM_ID, router, ER_ENABLED, VRF_QUEUE, VRF_PROGRAM_ID } from "./router";
 import { IX } from "./idlSpec";
+import { money } from "../engine/shopKinds";
 import { SOL_FEED_ID, BTC_FEED_ID, hermesUrl } from "./pyth";
 
 export const SESSION_PROGRAM_ID = new PublicKey("KeyspM2ssCJbqUhQ4k7sveSiY4WjnYsrXkC8oDbwde5");
@@ -342,9 +343,9 @@ export class GameChain {
         };
         if (await this.waitFor(paid, 15_000, "the Magic Action").then(() => true, () => false)) {
           const [last] = await this.conn.getSignaturesForAddress(this.ledger, { limit: 1 }, "confirmed");
-          this.log("SETTLE", { message: "Magic Action settled your GD on devnet", signature: last?.signature ?? "sim-settle", latencyMs: 0, isLive: true, er: false });
+          this.log("SETTLE", { message: "Magic Action settled your cash on devnet", signature: last?.signature ?? "sim-settle", latencyMs: 0, isLive: true, er: false });
         } else {
-          await this.timed("SETTLE", "Settled your rollup GD to your wallet token account", () => this.send([this.ix("settle_shop", Buffer.alloc(0), this.common())], 250_000));
+          await this.timed("SETTLE", "Settled your rollup cash to your wallet token account", () => this.send([this.ix("settle_shop", Buffer.alloc(0), this.common())], 250_000));
         }
         await this.timed("TICK", "Shop delegated to the Ephemeral Rollup again", () => this.send([this.delegateIx(validator)], 400_000));
         await this.waitFor(async () => !!(await router.erConn.getAccountInfo(this.ledger)), 30_000, "the rollup to receive the shop");
@@ -414,7 +415,7 @@ export class GameChain {
         this.send([this.ix("create_season", Buffer.concat([u64(SEASON_ID), u64(1), u64(0)]), c)], 400_000));
     }
     if (!player) {
-      await this.timed("TICK", "Joined season: 10,000 GD minted to your wallet", () => this.send([this.ix("join_season", Buffer.alloc(0), c)], 400_000));
+      await this.timed("TICK", "Joined season: $10,000 (GD token) minted to your wallet", () => this.send([this.ix("join_season", Buffer.alloc(0), c)], 400_000));
     }
     if (!business) {
       const ixs: TransactionInstruction[] = [];
@@ -423,7 +424,7 @@ export class GameChain {
       const owned = plotInfo ? !plotInfo.data.subarray(8 + 8 + 2 + 3).slice(0, 1).equals(Buffer.from([0])) : false;
       if (!owned) ixs.push(this.ix("claim_plot", Buffer.alloc(0), c));
       ixs.push(this.ix("open_business", Buffer.concat([Buffer.from([0]), u16(275)]), c)); // CoffeeCart at $2.75 (competitive with the town)
-      await this.timed("TICK", "Plot claimed (3,000 GD) and Corner Roast opened (2,000 GD)", () => this.send(ixs, 600_000));
+      await this.timed("TICK", "Plot claimed ($3,000) and Corner Roast opened ($2,000)", () => this.send(ixs, 600_000));
     }
   }
 
@@ -513,7 +514,7 @@ export class GameChain {
       won: d[172] === 1, signature,
     };
     this.log("AUCTION", {
-      message: out.won ? `Auction won (VRF): paid ${out.bidGd} GD, +${out.units} units of stock` : `Auction lost (VRF): top rival bid ${Math.max(...out.rivalsGd)} GD (bid returned)`,
+      message: out.won ? `Auction won (VRF): paid ${money(out.bidGd)}, +${out.units} units of stock` : `Auction lost (VRF): top rival bid ${money(Math.max(...out.rivalsGd))} (bid returned)`,
       signature, latencyMs: Math.round(performance.now() - t0), isLive: true, er: true,
     });
     await this.refresh();
@@ -536,7 +537,7 @@ export class GameChain {
     const price = this.state.priceCents;
     this.enqueue(async () => {
       try {
-        await this.timed("TICK", `${n} customer${n > 1 ? "s" : ""} paid $${((n * price) / 100).toFixed(2)} GD`, () =>
+        await this.timed("TICK", `${n} customer${n > 1 ? "s" : ""} paid ${money((n * price) / 100)}`, () =>
           this.send([this.ix(this.state.erMode ? "er_serve_customers" : "serve_customers", u16(n), this.common())], 200_000, this.state.erMode));
       } catch (e) {
         const m = e instanceof Error ? e.message : String(e);

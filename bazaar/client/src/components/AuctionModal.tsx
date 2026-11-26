@@ -4,6 +4,7 @@ import { Modal, PanelHead } from "./ui";
 import { useGameStore } from "../store/gameStore";
 import { gameChain, type AuctionOutcome } from "../solana/gameChain";
 import { sfx } from "../audio/sfx";
+import { money } from "../engine/shopKinds";
 import { useStats } from "../store/statsStore";
 import { InteriorBanner } from "./InteriorBanner";
 import { landmarkInterior } from "../engine/buildingRegistry";
@@ -69,7 +70,6 @@ export const AuctionModal: React.FC = () => {
   const topRival = outcome ? Math.max(...outcome.rivalsGd) : 0;
   const winnerIdx = outcome ? (outcome.won ? 0 : 1 + outcome.rivalsGd.indexOf(topRival)) : null;
 
-  const gd = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 2 });
   const cap = STOCK_CAP * (chain.upgrades & 2 ? 2 : 1);
   const blocked = !live ? "Connect your wallet and start a session to bid."
     : !chain.erMode ? "Auctions run on the Ephemeral Rollup, which is not active right now."
@@ -83,8 +83,8 @@ export const AuctionModal: React.FC = () => {
 
         <dl className="grid grid-cols-3 gap-2 text-center">
           {[
-            ["Lot is worth", `${gd(fairGd)} GD`],
-            ["Your GD", live ? gd(chain.gd) : "—"],
+            ["Lot is worth", money(fairGd)],
+            ["Your cash", live ? money(chain.gd) : "—"],
             ["Your stock", live ? `${chain.inventory} / ${cap}` : "—"],
           ].map(([k, v]) => (
             <div key={k} className="well px-2 py-1.5">
@@ -103,12 +103,12 @@ export const AuctionModal: React.FC = () => {
               Your bid <span className="text-xs font-bold text-soft">Rivals bid 60–119% of the lot's worth</span>
             </label>
             <div className="well flex items-center gap-2 px-3 focus-within:border-ink">
+              <span aria-hidden className="font-display text-3xl font-bold text-soft">$</span>
               <input
                 id="bid" type="number" inputMode="decimal" autoComplete="off" min={1} max={Math.max(1, Math.floor(chain.gd))} value={bidInput}
                 onChange={(e) => setBidInput(Number(e.target.value))}
                 className="h-14 w-full bg-transparent font-display text-3xl font-bold tabular-nums"
               />
-              <span className="font-display font-semibold text-soft">GD</span>
             </div>
             <div className="grid grid-cols-4 gap-2">
               {[0.7, 0.9, 1.0, 1.2].map((k) => (
@@ -132,7 +132,7 @@ export const AuctionModal: React.FC = () => {
                   <li key={idx} className={`rounded-xl border-2 border-ink p-3 text-center transition-colors ${isWinner ? "bg-gold" : "bg-parchment"}`}>
                     <div className="flex items-center justify-center gap-1.5 text-xs font-extrabold">{name}{isWinner && <Trophy className="h-4 w-4" aria-label="Winner" />}</div>
                     <div className={`mt-1 font-display text-xl font-bold tabular-nums ${shown ? "animate-pop" : "text-soft"}`}>
-                      {shown ? `${gd(amounts[idx])} GD` : "? ? ?"}
+                      {shown ? money(amounts[idx]) : "? ? ?"}
                     </div>
                   </li>
                 );
@@ -143,12 +143,12 @@ export const AuctionModal: React.FC = () => {
               {phase === "REVEAL" && <p>Opening the bids…</p>}
               {phase === "RESULT" && outcome && (outcome.won ? (
                 <>
-                  <p className="font-display text-lg font-semibold text-leaf">You won! Paid {gd(outcome.bidGd)} GD</p>
+                  <p className="font-display text-lg font-semibold text-leaf">You won! Paid {money(outcome.bidGd)}</p>
                   <p>+{outcome.units} units on your shelves (stock now {chain.inventory})</p>
                 </>
               ) : (
                 <>
-                  <p className="font-display text-lg font-semibold text-berry">Outbid at {gd(topRival)} GD</p>
+                  <p className="font-display text-lg font-semibold text-berry">Outbid at {money(topRival)}</p>
                   <p>Your bid was returned.</p>
                 </>
               ))}

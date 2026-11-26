@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import { useStats, profitOf, shopOn, type ShopDay } from "../store/statsStore";
 import { OPEN_HOUR, priceCurve, type Seller } from "../engine/economy";
-import { price, shopKind } from "../engine/shopKinds";
+import { price, shopKind, money as cash } from "../engine/shopKinds";
 import { Modal, PanelHead } from "./ui";
 
 // validated on the parchment surface (CVD and contrast): you vs everyone else
 const YOU = "#2f5f9a", OTHERS = "#c9701f", GONE = "#8a7560";
-const gd = (cents: number) => (cents / 100).toLocaleString(undefined, { maximumFractionDigits: 2 });
+const usd = (cents: number) => cash(cents / 100);
 const hh = (i: number) => `${String(OPEN_HOUR + i).padStart(2, "0")}:00`;
 const pct = (n: number, of: number) => (of ? Math.round((n / of) * 100) : 0);
 
@@ -86,8 +86,8 @@ const PriceAdvisor: React.FC<{ sellers: Seller[]; unitCostCents: number; onSetPr
     <>
       <p aria-live="polite" className="text-xs font-bold tabular-nums">
         {shown
-          ? `At ${price(shown.priceCents)}: you win ${Math.round(shown.share * 100)}% of coffee shoppers, ${gd(shown.profitPer100)} GD profit per 100`
-          : `At ${price(mine.priceCents)} you win about ${Math.round(now.share * 100)}% of coffee shoppers: ${gd(now.profitPer100)} GD profit per 100`}
+          ? `At ${price(shown.priceCents)}: you win ${Math.round(shown.share * 100)}% of coffee shoppers, ${usd(shown.profitPer100)} profit per 100`
+          : `At ${price(mine.priceCents)} you win about ${Math.round(now.share * 100)}% of coffee shoppers: ${usd(now.profitPer100)} profit per 100`}
       </p>
       <svg viewBox={`0 0 ${W} ${H}`} className="mt-1 w-full" role="img" aria-label={`Expected profit by price. Highest at ${price(best.priceCents)}.`} onPointerLeave={() => setAt(null)}>
         <line x1="0" x2={W} y1={H - 6} y2={H - 6} stroke="#2a1c15" strokeOpacity=".4" />
@@ -136,8 +136,8 @@ export const Reports: React.FC<{ shop: ReportShop; sellers: Seller[]; unitCostCe
         <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {[
             ["Sales", String(day.sold), ""],
-            ["Revenue", `${gd(day.revenue)} GD`, ""],
-            mine ? ["Profit on sales", `${gd(profitOf(day))} GD`, profitOf(day) < 0 ? "text-berry" : ""] : ["Price", price(sellers.find((s) => s.id === shop.id)?.priceCents ?? day.price), ""],
+            ["Revenue", usd(day.revenue), ""],
+            mine ? ["Profit on sales", usd(profitOf(day)), profitOf(day) < 0 ? "text-berry" : ""] : ["Price", price(sellers.find((s) => s.id === shop.id)?.priceCents ?? day.price), ""],
             ["Market share", day.wanted ? `${pct(day.won, day.wanted)}%` : "—", ""],
           ].map(([k, v, tone]) => (
             <div key={k} className="well px-3 py-2">
@@ -146,7 +146,7 @@ export const Reports: React.FC<{ shop: ReportShop; sellers: Seller[]; unitCostCe
             </div>
           ))}
         </dl>
-        {mine && <p className="text-xs font-bold text-soft">Spent on stock {picked.day === today ? "today" : `on day ${picked.day}`}: {gd(day.stockSpend)} GD. Profit counts only the wholesale cost of units sold.</p>}
+        {mine && <p className="text-xs font-bold text-soft">Spent on stock {picked.day === today ? "today" : `on day ${picked.day}`}: {usd(day.stockSpend)}. Profit counts only the wholesale cost of units sold.</p>}
 
         {day.wanted === 0 ? (
           <p className="well p-4 text-sm font-bold">No {trade} shoppers yet. Charts fill in as people arrive.</p>
@@ -162,13 +162,13 @@ export const Reports: React.FC<{ shop: ReportShop; sellers: Seller[]; unitCostCe
           </Section>
         )}
         {days.length > 1 && (
-          <Section title={mine ? "Profit by day" : "Revenue by day"} note="GD, with the price and sales under each day; today is still running">
+          <Section title={mine ? "Profit by day" : "Revenue by day"} note="With the price and sales under each day; today is still running">
             <div className="flex h-32 items-end gap-3 border-b border-ink/40">
               {days.map((d) => {
                 const v = money(shopOn(d, shop.id));
                 return (
                   <div key={d.day} className="flex h-full flex-1 flex-col items-center justify-end">
-                    <span className="text-xs font-bold tabular-nums">{gd(v)}</span>
+                    <span className="text-xs font-bold tabular-nums">{usd(v)}</span>
                     <span className="w-full max-w-[24px] rounded-t" style={{ height: `${(Math.abs(v) / max) * 80}%`, background: v < 0 ? "#a8372a" : YOU }} />
                   </div>
                 );

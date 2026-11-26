@@ -17,7 +17,7 @@ export const GLYPH = {
   clerk: s("M-9 -9H9V12H-9Z") + s("M-4 -12H4V-6H-4Z") + line("M-5 -1H5M-5 4H5M-5 8H1", I, 1.4),
   help: line("M-6 -5Q-6 -12 0 -12Q7 -12 6 -5Q6 -1 0 1V4", "#fff", 4) + dot(0, 10, 2.6, "#fff"),
   pin: s("M0 13Q-10 0 -10 -4A10 10 0 0 1 10 -4Q10 0 0 13Z") + dot(0, -4, 3.6, "#b5402f"),
-  coin: dot(0, 0, 11, "#ffcf3f") + line("M3 -4q-7 -3 -6 4q1 7 6 4v-4h-3", I, 2),
+  coin: dot(0, 0, 11, "#ffcf3f") + line("M4.5 -3.5Q3 -6 0 -6Q-4.5 -6 -4.5 -3Q-4.5 -0.8 0 0Q4.5 0.8 4.5 3Q4.5 6 0 6Q-3 6 -4.5 3.5M0 -8.5V8.5", I, 2.4),
   crate: s("M-11 -8H11V11H-11Z", 'style="fill:#d89a58"') + line("M-11 -8L11 11M11 -8L-11 11", I, 1.4) + line("M-11 -1H11", I, 1),
   people: dot(-5, -5, 4.5, "#fff") + s("M-12 11Q-12 1 -5 1Q2 1 2 11Z") + dot(7, -2, 3.6, "#fff") + s("M2 11Q2 4 7 4Q12 4 12 11Z"),
   chart: s("M-11 2h6v10h-6ZM-3 -5h6v17h-6ZM5 -11h6v23H5Z"),

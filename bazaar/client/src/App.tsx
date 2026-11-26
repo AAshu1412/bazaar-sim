@@ -6,7 +6,7 @@ import { demandModifiers } from "./engine/cityEvents";
 import { clockAt, period } from "./engine/economy";
 import { Reports } from "./components/Reports";
 import { useStats, profitOf, shopOn } from "./store/statsStore";
-import { PLACES, price, shopKind, type PlaceId } from "./engine/shopKinds";
+import { PLACES, price, money, shopKind, type PlaceId } from "./engine/shopKinds";
 import { EventBanner } from "./components/EventBanner";
 import { AuctionModal } from "./components/AuctionModal";
 import { CityLedger } from "./components/CityLedger";
@@ -109,7 +109,7 @@ export const App: React.FC = () => {
         const yesterday = useStats.getState().days.at(-1)!;
         useStats.getState().startDay(day);
         const repriced = engine.newDay();
-        handlers.current.say(`Day ${day}: yesterday's profit ${(profitOf(shopOn(yesterday, 0)) / 100).toFixed(2)} GD. Rivals restocked, ${repriced} changed price.`);
+        handlers.current.say(`Day ${day}: yesterday's profit ${money(profitOf(shopOn(yesterday, 0)) / 100)}. Rivals restocked, ${repriced} changed price.`);
       }
       setClock((c) => (c.day === now.day && c.hour === now.hour ? c : now));
     }, 500);
@@ -207,7 +207,7 @@ export const App: React.FC = () => {
 
   const reported = reportsFor === null ? null : engineRef.current?.plots[reportsFor];
   const stats = [
-    { icon: "coin", name: live ? "Your GD" : "Practice GD", value: gd.toLocaleString(undefined, { maximumFractionDigits: 2 }) },
+    { icon: "coin", name: live ? "Your cash" : "Practice cash", value: money(gd) },
     { icon: "crate", name: "Stock", value: mine ? (mine.inventory === 0 ? "Out!" : String(mine.inventory)) : "…", warn: mine?.inventory === 0 },
     { icon: "tag", name: "Your price", value: mine ? price(mine.priceCents) : "…" },
   ];

@@ -3,7 +3,7 @@ import { Minus, Plus, Loader2 } from "lucide-react";
 import type { PlotInfo } from "../engine/IsometricEngineV3";
 import { InteriorBanner } from "./InteriorBanner";
 import { interiorFor } from "../engine/buildingRegistry";
-import { shopKind, price } from "../engine/shopKinds";
+import { shopKind, price, money } from "../engine/shopKinds";
 import { Badge, Meter, PanelHead } from "./ui";
 import type { ShopDay } from "../store/statsStore";
 
@@ -47,7 +47,7 @@ export const PlotInspector: React.FC<Props> = ({ plot, rivals, myPriceCents, myT
   const beaten = rivals.filter((r) => r.priceCents > plot.priceCents).length;
   const gap = plot.priceCents - myPriceCents;
   const full = plot.inventory + RESTOCK_UNITS > stockCap;
-  const restockWhy = full ? "Shelves are full" : gd < restockCostGd ? "Not enough GD" : null;
+  const restockWhy = full ? "Shelves are full" : gd < restockCostGd ? "Not enough cash" : null;
 
   return (
     <aside aria-label="Shop details" className="panel fixed right-4 top-[92px] z-40 flex max-h-[calc(100vh-176px)] w-[344px] max-w-[calc(100vw-2rem)] animate-pop flex-col">
@@ -112,7 +112,7 @@ export const PlotInspector: React.FC<Props> = ({ plot, rivals, myPriceCents, myT
               <dl className="grid grid-cols-3 text-center">
                 {[
                   ["Sales today", String(today.sold)],
-                  ["Revenue", `${(today.revenue / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })} GD`],
+                  ["Revenue", money(today.revenue / 100)],
                   ["Share", today.wanted ? `${Math.round((today.won / today.wanted) * 100)}%` : "—"],
                 ].map(([k, v]) => (
                   <div key={k}>
@@ -128,11 +128,11 @@ export const PlotInspector: React.FC<Props> = ({ plot, rivals, myPriceCents, myT
               <div className="space-y-2 pt-1">
                 <button className="btn btn-leaf w-full justify-between" disabled={!!busy || !!restockWhy} onClick={() => run("restock", onRestock)}>
                   <span className="flex items-center gap-2">{busy === "restock" && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}{busy === "restock" ? "Restocking…" : `Restock +${RESTOCK_UNITS}`}</span>
-                  <span className="tabular-nums">{restockWhy ?? `${restockCostGd.toLocaleString(undefined, { maximumFractionDigits: 2 })} GD`}</span>
+                  <span className="tabular-nums">{restockWhy ?? money(restockCostGd)}</span>
                 </button>
                 <button className="btn btn-gold w-full justify-between" disabled={!!busy || signage || !live || gd < 1000} onClick={() => run("upgrade", onUpgrade)}>
                   <span className="flex items-center gap-2">{busy === "upgrade" && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}{signage ? "Signage installed" : "Put up signage"}</span>
-                  {!signage && <span>{!live ? "Needs wallet" : "1,000 GD"}</span>}
+                  {!signage && <span>{!live ? "Needs wallet" : money(1000)}</span>}
                 </button>
                 <p className="text-xs font-semibold text-soft">{live ? "Signed by your session key. No wallet pop-up." : "Practice mode: nothing is saved on-chain. Connect a wallet to play for real."}</p>
               </div>
