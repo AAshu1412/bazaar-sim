@@ -563,6 +563,35 @@ export const IX: Record<string, { disc: number[]; accounts: [string, boolean, bo
    ]
   ]
  },
+ "er_charge_rent": {
+  "disc": [
+   232,
+   173,
+   54,
+   179,
+   146,
+   8,
+   85,
+   153
+  ],
+  "accounts": [
+   [
+    "season",
+    false,
+    false
+   ],
+   [
+    "business",
+    true,
+    false
+   ],
+   [
+    "ledger",
+    true,
+    false
+   ]
+  ]
+ },
  "er_request_event": {
   "disc": [
    41,
@@ -1173,6 +1202,50 @@ export const IX: Record<string, { disc: number[]; accounts: [string, boolean, bo
    ],
    [
     "token_program",
+    false,
+    false
+   ]
+  ]
+ },
+ "schedule_rent": {
+  "disc": [
+   237,
+   98,
+   54,
+   27,
+   9,
+   66,
+   180,
+   212
+  ],
+  "accounts": [
+   [
+    "payer",
+    true,
+    true
+   ],
+   [
+    "season",
+    false,
+    false
+   ],
+   [
+    "business",
+    true,
+    false
+   ],
+   [
+    "ledger",
+    true,
+    false
+   ],
+   [
+    "magic_program",
+    false,
+    false
+   ],
+   [
+    "session_token",
     false,
     false
    ]

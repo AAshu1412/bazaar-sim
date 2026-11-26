@@ -11,7 +11,9 @@ pub struct Business {
     pub upgrades: u8,                     // bitflags: 1:Signage, 2:Storage, 4:SecondCounter, 8:Brand
     pub manager: Option<Pubkey>,          // Manager agent session key
     pub revenue_today: u64,
-    pub revenue_trailing_3d: [u64; 3],    // used for business valuation
+    pub rent_paid_at: i64,                // unix time rent was last charged (0 = not started)
+    pub rent_paid_total: u64,             // raw GD of rent ever paid
+    pub reserved: u64,
     // Private ER (sealed inside TDX):
     pub inventory: u32,
     pub unit_cost_cents: u16,

@@ -125,6 +125,13 @@ pub mod bazaar {
     pub fn settle_shop_action(ctx: Context<SettleShopAction>) -> Result<()> {
         handle_settle_shop_action(ctx)
     }
+    /// MagicBlock crank: charge daily rent every game day (client asks once, the rollup runs it)
+    pub fn schedule_rent(ctx: Context<ScheduleRent>, days: u16) -> Result<()> {
+        handle_schedule_rent(ctx, days)
+    }
+    pub fn er_charge_rent(ctx: Context<ChargeRent>) -> Result<()> {
+        handle_er_charge_rent(ctx)
+    }
     pub fn commit_shop(ctx: Context<CommitShop>) -> Result<()> {
         handle_commit_shop(ctx)
     }

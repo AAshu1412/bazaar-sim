@@ -58,7 +58,9 @@ pub fn handle_open_business(
     business.upgrades = 0;
     business.manager = None;
     business.revenue_today = 0;
-    business.revenue_trailing_3d = [0, 0, 0];
+    business.rent_paid_at = 0;
+    business.rent_paid_total = 0;
+    business.reserved = 0;
     business.inventory = 60; // initial starter inventory
     business.unit_cost_cents = initial_price_cents / 2;
     business.total_lifetime_revenue = 0;

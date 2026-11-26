@@ -43,6 +43,9 @@ Rules live in `client/src/engine/economy.ts` (pure; `npm run check` tests them).
 - NOT in the formula: reputation, Pyth/oracle signals, distance, day of week.
 - A different, unused formula exists in `programs/bazaar/src/utils.rs`. Nothing calls it.
 
+## 5b. Rent  [ON-CHAIN, MagicBlock crank]
+Your shop pays **$20 each game day** (150 s). After delegating, the client calls `schedule_rent(12)` on the rollup, which asks MagicBlock's scheduler to run `er_charge_rent` every 150 s, up to 12 times (renewed while you play). The charge comes off your rollup balance and stays in the town treasury. `er_charge_rent` needs no signature and is safe to call: it charges only if a day has passed, never charges missed days back, and waits if you cannot pay. If you close the game the schedule runs out within 30 minutes (at most $240). Without the rollup no rent is charged; practice mode charges it in the browser. Rivals pay no rent.
+
 ## 6. How a sale becomes money  [ON-CHAIN, but triggered by the client]
 When a simulated customer buys from plot #0, the client calls `recordSale()`. Sales are batched (every ~2.5 s, up to 20) into one `serve_customers(count)` transaction. The program moves `price x n` GD from the treasury to your GD account, reduces stock by n, adds to revenue, and counts customers served. If stock is 0 it fails and the UI shows "sold out, restock".
 **Trust issue:** the program does not check that customers really came. Only the season authority (your own session key) may call it, but in your own season that is you, so you could "sell" to yourself. Fine for solo play, exploitable for any leaderboard/prize.

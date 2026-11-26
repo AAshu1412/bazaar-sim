@@ -25,7 +25,42 @@ function pineTree(S, x, y, s = 1) {
   S.add(g);
 }
 
+/** Ornamental plaza lamp: two lanterns on curled arms, a flower basket and a gold finial. */
+function plazaLamp(S, lit) {
+  const [cx, cy] = P(50, 50, 0), iron = "#24433d", gold = "#e6b84a", top = cy - 62;
+  const stroke = (d, c, w) => `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round"/>`;
+  const curl = `M${cx} ${top + 8}C${cx - 8} ${top - 6} ${cx - 20} ${top - 2} ${cx - 17} ${top + 9}M${cx} ${top + 8}C${cx + 8} ${top - 6} ${cx + 20} ${top - 2} ${cx + 17} ${top + 9}`;
+  let g = `<ellipse cx="${cx}" cy="${cy + 1}" rx="13" ry="6" fill="#000" opacity=".25"/>`;
+  g += `<path d="M${cx - 9} ${cy}Q${cx - 8} ${cy - 5} ${cx - 3.5} ${cy - 9}L${cx - 2.5} ${top}H${cx + 2.5}L${cx + 3.5} ${cy - 9}Q${cx + 8} ${cy - 5} ${cx + 9} ${cy}Q${cx} ${cy + 5} ${cx - 9} ${cy}Z" fill="${S.grad([[0, "#3f6f64"], [1, "#1b332e"]], [0, 0, 1, 0])}" stroke="${O}" stroke-width="1.4"/>`;
+  g += `<ellipse cx="${cx}" cy="${cy - 11}" rx="5" ry="2.4" fill="${gold}" stroke="${O}" stroke-width="1"/>`;
+  g += stroke(curl, O, 5) + stroke(curl, iron, 2.8);
+  for (const x of [cx - 17, cx + 17]) {
+    const y = top + 10;
+    if (lit) g += `<circle cx="${x}" cy="${y + 8}" r="15" fill="${S.radial([[0, "#ffe2a0", 0.7], [1, "#ffe2a0", 0]])}"/>`;
+    g += `<path d="M${x - 7} ${y + 1}L${x} ${y - 5}L${x + 7} ${y + 1}Z" fill="${iron}" stroke="${O}" stroke-width="1.2"/>`;
+    g += `<path d="M${x - 5.5} ${y + 1}H${x + 5.5}L${x + 3.8} ${y + 13}H${x - 3.8}Z" fill="${lit ? "#ffe39a" : "#a9bcc4"}" stroke="${O}" stroke-width="1.3"/>`;
+    g += stroke(`M${x} ${y + 2}V${y + 12}`, iron, 1.1) + `<circle cx="${x}" cy="${y + 15}" r="1.8" fill="${gold}" stroke="${O}" stroke-width=".8"/>`;
+  }
+  // flower basket and finial
+  const by = cy - 34;
+  g += `<path d="M${cx - 9} ${by}H${cx + 9}Q${cx + 6} ${by + 8} ${cx} ${by + 8}Q${cx - 6} ${by + 8} ${cx - 9} ${by}Z" fill="#8a5a34" stroke="${O}" stroke-width="1.2"/>`;
+  for (const [dx, dy, c] of [[-8, -1, "#e66f9a"], [-3, -4, "#ffd23f"], [3, -3, "#e66f9a"], [8, -1, "#ffffff"], [0, -1, "#ff7a45"]]) g += `<circle cx="${cx + dx}" cy="${by + dy}" r="3" fill="${c}" stroke="#2a3a1e" stroke-width=".8"/>`;
+  g += `<path d="M${cx} ${top - 12}l3.5 6l-3.5 5l-3.5 -5Z" fill="${gold}" stroke="${O}" stroke-width="1.1"/>`;
+  S.add(g);
+}
+/** A park bench along the x axis, centred in the tile; `back` says which side the backrest is on. */
+function plazaBench(S, back) {
+  const x = 30, y = 43, w = 40, d = 13, wood = "#b57a42", iron = "#24433d";
+  const rest = () => { const ry = back === "far" ? y - 1 : y + d - 2; for (const px of [x + 2, x + w - 5]) box(S, px, ry, 7, 3, 3, 18, iron, { sw: 1 }); box(S, x, ry, 14, w, 3, 5, wood, { sw: 1.1 }); box(S, x, ry, 21, w, 3, 5, wood, { sw: 1.1 }); };
+  const seat = () => { for (const [px, py] of [[x + 2, y], [x + w - 5, y], [x + 2, y + d - 3], [x + w - 5, y + d - 3]]) box(S, px, py, 0, 3, 3, 8, iron, { sw: 1 }); for (const i of [0, 1, 2]) box(S, x, y + i * 4.4, 8, w, 3.6, 3, wood, { sw: 1 }); };
+  if (back === "far") { rest(); seat(); } else { seat(); rest(); }
+}
+
 export const SCENERY = {
+  "plaza-lamp": (S) => plazaLamp(S, true),
+  "plaza-lamp-off": (S) => plazaLamp(S, false),
+  "bench-back": (S) => plazaBench(S, "far"),
+  "bench-front": (S) => plazaBench(S, "near"),
   fountain: (S) => {
     cyl(S, 50, 50, 46, 10, "#bdb8aa", "#a6a294");
     water(S, 50, 50, 10, 38);
@@ -37,12 +72,11 @@ export const SCENERY = {
     let jets = "";
     for (let k = 0; k < 7; k++) { const a = (k / 7) * Math.PI * 2, dx = Math.cos(a) * 24, dy = Math.sin(a) * 12; jets += `<path d="M${f(cx)} ${f(cy)}Q${f(cx + dx * 0.5)} ${f(cy - 18)} ${f(cx + dx)} ${f(cy + 34 + dy)}" fill="none" stroke="#e6f8ff" stroke-width="2.2" opacity=".8" stroke-linecap="round"/>`; }
     S.add(jets + `<circle cx="${f(cx)}" cy="${f(cy - 2)}" r="3" fill="#fff"/>`);
-    for (const [x, y] of [[8, 50], [92, 50]]) lamppost(S, x, y, 40);
     bush(S, 14, 14, 0.8, "#5a9a44"); bush(S, 86, 86, 0.8, "#5a9a44");
   },
   "park-garden": (S) => {
     bed(S, 12, 12, 32, 32, ["#e66f9a", "#f2c94c", "#ffffff"]); bed(S, 56, 12, 32, 32, ["#c9a8ff", "#ffffff", "#f2c94c"]); bed(S, 12, 56, 32, 32, ["#ff9f5a", "#f2c94c", "#e66f9a"]); bed(S, 56, 56, 32, 32, ["#ffffff", "#e66f9a", "#8fc3ff"]);
-    bench(S, 40, 4); bench(S, 40, 90); tree(S, 2, 2, 0.8); tree(S, 94, 2, 0.8); tree(S, 2, 94, 0.8, "#6aa04a"); lamppost(S, 50, 50, 36);
+    bench(S, 40, 4); bench(S, 40, 90); tree(S, 2, 2, 0.8); tree(S, 94, 2, 0.8); tree(S, 2, 94, 0.8, "#6aa04a");
   },
   "park-orchard": (S) => {
     for (const [x, y] of [[18, 18], [50, 14], [82, 18], [18, 52], [50, 52], [82, 52], [18, 86], [50, 86], [82, 86]]) { tree(S, x, y, 0.72, "#4f8f3a"); const p = P(x, y, 0); for (let i = 0; i < 5; i++) S.add(`<circle cx="${f(p[0] + (S.r() - 0.5) * 24)}" cy="${f(p[1] - 28 - S.r() * 22)}" r="2.6" fill="${["#d9453a", "#e8a23a", "#d9453a"][i % 3]}" stroke="#4a1a14" stroke-width=".8"/>`); }
@@ -61,7 +95,7 @@ export const SCENERY = {
     const [cx, cy] = P(50, 50, 22);
     S.add(`<path d="M${f(cx - 7)} ${f(cy)}h14l-2 -22q6 -4 3 -12q-5 -6 -8 -6q-3 0 -8 6q-3 8 3 12z" fill="${S.grad([[0, "#d7d4ca"], [1, "#8f8c80"]], [0, 0, 1, 0])}" stroke="${O}" stroke-width="1.5"/><circle cx="${f(cx)}" cy="${f(cy - 38)}" r="6" fill="#d7d4ca" stroke="${O}" stroke-width="1.4"/><path d="M${f(cx + 6)} ${f(cy - 24)}l14 -18" stroke="#c9a24a" stroke-width="2.4"/><path d="M${f(cx + 19)} ${f(cy - 46)}l5 -7l3 8z" fill="#c9a24a" stroke="${O}" stroke-width="1"/>`);
     for (const [x, y] of [[6, 6], [84, 6], [6, 84], [84, 84]]) box(S, x, y, 0, 10, 10, 12, "#3f7a35", { sw: 1.2, top: "#5a9a44" });
-    bench(S, 40, 90); bench(S, 40, 2); lamppost(S, 94, 50, 38); lamppost(S, 6, 50, 38);
+    bench(S, 40, 90); bench(S, 40, 2);
   },
   "tree-oak": (S) => { tree(S, 50, 50, 1.05, "#4a8a3a"); },
   "tree-birch": (S) => { tree(S, 50, 50, 1.0, "#79a845", "#cfc7b4"); },

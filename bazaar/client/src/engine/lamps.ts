@@ -2,8 +2,11 @@
 import * as PIXI from "pixi.js";
 import { WORLD } from "./surroundings";
 
-const LIT = "/assets/scenery/street-lamp.png", OFF = "/assets/scenery/street-lamp-off.png";
-export const lampAssets = [LIT, OFF];
+/** lamp sprites and where their light comes from (pixels above the ground at full prop scale) */
+export const LAMPS = { "street-lamp": { head: 38, pool: 230 }, "plaza-lamp": { head: 36, pool: 200 } } as const;
+export type LampKind = keyof typeof LAMPS;
+const texturePath = (kind: LampKind, lit: boolean) => `/assets/scenery/${kind}${lit ? "" : "-off"}.png`;
+export const lampAssets = (Object.keys(LAMPS) as LampKind[]).flatMap((k) => [texturePath(k, true), texturePath(k, false)]);
 /** darkness at which the lamps switch on */
 const SWITCH_ON = 0.08;
 
@@ -24,7 +27,7 @@ export class Night {
   public readonly layer = new PIXI.Container();
   private shade = new PIXI.Graphics().rect(WORLD.left, WORLD.top, WORLD.right - WORLD.left, WORLD.bottom - WORLD.top).fill({ color: 0x0a1138 });
   private light = new PIXI.Container();
-  private lamps: PIXI.Sprite[] = [];
+  private lamps: { sprite: PIXI.Sprite; kind: LampKind }[] = [];
   private texture: PIXI.Texture | null = null;
   private darkness = 0;
   private target = 0;
@@ -36,7 +39,7 @@ export class Night {
   }
 
   /** `sprite` is the lamp post; (x, y) is where it stands */
-  addLamp(sprite: PIXI.Sprite, x: number, y: number) {
+  addLamp(kind: LampKind, sprite: PIXI.Sprite, x: number, y: number) {
     this.texture ??= glow();
     const spill = (dy: number, w: number, h: number, alpha: number) => {
       const s = new PIXI.Sprite(this.texture!);
@@ -47,9 +50,10 @@ export class Night {
       s.blendMode = "add";
       this.light.addChild(s);
     };
-    spill(0, 230, 122, 0.5); // pool on the ground
-    spill(-38, 46, 46, 0.6); // the lamp head
-    this.lamps.push(sprite);
+    const { head, pool } = LAMPS[kind];
+    spill(0, pool, pool * 0.53, 0.5); // pool on the ground
+    spill(-head, 46, 46, 0.6); // the lamp head
+    this.lamps.push({ sprite, kind });
     this.apply();
   }
 
@@ -66,7 +70,9 @@ export class Night {
     this.shade.alpha = this.darkness;
     this.light.alpha = on ? Math.min(1, (this.darkness - SWITCH_ON) / 0.3) : 0;
     this.light.visible = on;
-    const texture = PIXI.Assets.get<PIXI.Texture>(on ? LIT : OFF);
-    if (texture) for (const lamp of this.lamps) if (lamp.texture !== texture) lamp.texture = texture;
+    for (const { sprite, kind } of this.lamps) {
+      const texture = PIXI.Assets.get<PIXI.Texture>(texturePath(kind, on));
+      if (texture && sprite.texture !== texture) sprite.texture = texture;
+    }
   }
 }

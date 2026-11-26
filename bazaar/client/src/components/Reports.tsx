@@ -137,7 +137,7 @@ export const Reports: React.FC<{ shop: ReportShop; sellers: Seller[]; unitCostCe
           {[
             ["Sales", String(day.sold), ""],
             ["Revenue", usd(day.revenue), ""],
-            mine ? ["Profit on sales", usd(profitOf(day)), profitOf(day) < 0 ? "text-berry" : ""] : ["Price", price(sellers.find((s) => s.id === shop.id)?.priceCents ?? day.price), ""],
+            mine ? ["Profit", usd(profitOf(day)), profitOf(day) < 0 ? "text-berry" : ""] : ["Price", price(sellers.find((s) => s.id === shop.id)?.priceCents ?? day.price), ""],
             ["Market share", day.wanted ? `${pct(day.won, day.wanted)}%` : "—", ""],
           ].map(([k, v, tone]) => (
             <div key={k} className="well px-3 py-2">
@@ -146,7 +146,7 @@ export const Reports: React.FC<{ shop: ReportShop; sellers: Seller[]; unitCostCe
             </div>
           ))}
         </dl>
-        {mine && <p className="text-xs font-bold text-soft">Spent on stock {picked.day === today ? "today" : `on day ${picked.day}`}: {usd(day.stockSpend)}. Profit counts only the wholesale cost of units sold.</p>}
+        {mine && <p className="text-xs font-bold text-soft">Spent on stock {picked.day === today ? "today" : `on day ${picked.day}`}: {usd(day.stockSpend)}. Rent paid: {usd(day.rent)}. Profit is revenue minus rent and the wholesale cost of units sold.</p>}
 
         {day.wanted === 0 ? (
           <p className="well p-4 text-sm font-bold">No {trade} shoppers yet. Charts fill in as people arrive.</p>

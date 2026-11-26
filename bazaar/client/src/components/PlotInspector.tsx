@@ -5,7 +5,7 @@ import { InteriorBanner } from "./InteriorBanner";
 import { interiorFor } from "../engine/buildingRegistry";
 import { shopKind, price, money } from "../engine/shopKinds";
 import { Badge, Meter, PanelHead } from "./ui";
-import { FOOT_TRAFFIC } from "../engine/economy";
+import { FOOT_TRAFFIC, SHOP_RENT } from "../engine/economy";
 import type { ShopDay } from "../store/statsStore";
 
 const TIERS = { Corner: "Corner plot", MainStreet: "Main Street", SideStreet: "Side Street", Alley: "Alley" } as const;
@@ -154,6 +154,7 @@ export const PlotInspector: React.FC<Props> = ({ plot, rivals, myPriceCents, myT
 
             {mine && (
               <div className="space-y-2 pt-1">
+                <p className="flex justify-between text-sm font-extrabold"><span>Rent, every game day</span><span className="tabular-nums">{money(SHOP_RENT)}</span></p>
                 <button className="btn btn-leaf w-full justify-between" disabled={!!busy || !!restockWhy} onClick={() => run("restock", onRestock)}>
                   <span className="flex items-center gap-2">{busy === "restock" && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}{busy === "restock" ? "Restocking…" : `Restock +${RESTOCK_UNITS}`}</span>
                   <span className="tabular-nums">{restockWhy ?? money(restockCostGd)}</span>

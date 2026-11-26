@@ -10,6 +10,8 @@ export interface ShopDay {
   cost: number;
   /** GD actually paid for stock (restocks and auction wins; your shop only) */
   stockSpend: number;
+  /** rent paid (your shop only) */
+  rent: number;
   /** shoppers who wanted this shop's trade, and where they went */
   wanted: number;
   won: number;
@@ -23,11 +25,11 @@ export interface ShopperRow { id: number; priceCents: number; outcome: Outcome; 
 
 const KEEP_DAYS = 7;
 export const emptyShop = (): ShopDay => ({
-  price: 0, sold: 0, revenue: 0, cost: 0, stockSpend: 0, wanted: 0, won: 0, tooPricey: 0, soldOut: 0, rivals: {},
+  price: 0, sold: 0, revenue: 0, cost: 0, stockSpend: 0, rent: 0, wanted: 0, won: 0, tooPricey: 0, soldOut: 0, rivals: {},
   hours: Array.from({ length: CLOSE_HOUR - OPEN_HOUR }, () => ({ mine: 0, others: 0 })),
 });
 export const shopOn = (day: DayStats, id: number) => day.shops[id] ?? emptyShop();
-export const profitOf = (d: ShopDay) => d.revenue - d.cost;
+export const profitOf = (d: ShopDay) => d.revenue - d.cost - d.rent;
 
 interface Stats {
   days: DayStats[]; // oldest first; the last one is today
@@ -37,6 +39,7 @@ interface Stats {
   turnedAway: (id: number) => void;
   sale: (id: number, priceCents: number, unitCostCents: number) => void;
   spent: (cents: number) => void;
+  paidRent: (cents: number) => void;
 }
 
 export const useStats = create<Stats>((set) => {
@@ -65,5 +68,6 @@ export const useStats = create<Stats>((set) => {
     turnedAway: (id) => today([id], (d) => ({ ...d, soldOut: d.soldOut + 1, won: Math.max(0, d.won - 1) })),
     sale: (id, priceCents, unitCostCents) => today([id], (d) => ({ ...d, price: priceCents, sold: d.sold + 1, revenue: d.revenue + priceCents, cost: d.cost + unitCostCents })),
     spent: (cents) => today([0], (d) => ({ ...d, stockSpend: d.stockSpend + cents })),
+    paidRent: (cents) => today([0], (d) => ({ ...d, rent: d.rent + cents })),
   };
 });

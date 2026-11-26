@@ -11,7 +11,7 @@ import { useGameStore } from "../store/gameStore";
 import { PLACES, shopKind, uiIcon, price, type PlaceId } from "./shopKinds";
 import { ROOF_TOPS } from "./roofTops";
 import { WORLD, DISTRICT, buildSurroundings, surroundingAssets } from "./surroundings";
-import { Night, lampAssets } from "./lamps";
+import { Night, LAMPS, lampAssets, type LampKind } from "./lamps";
 import { createSign, drawShopSign, drawPlaceSign, drawLeaseSign, label, SIGN_FONT, type Sign } from "./signs";
 
 export type PlotOwnerType = "player" | "rivalHuman" | "bot" | "unclaimed";
@@ -613,12 +613,12 @@ export class IsometricEngineV3 {
         sprite = new PIXI.Sprite();
       }
       sprite.anchor.set(0.5, SPRITE_ANCHOR_Y);
-      sprite.scale.set(pr.scale);
+      sprite.scale.set(pr.flip ? -pr.scale : pr.scale, pr.scale);
       sprite.y = this.TILE_H / 2; // 1x1 tile centre
       container.addChild(sprite);
       container.zIndex = iso.y + this.TILE_H / 2;
       this.entitiesLayer.addChild(container);
-      if (pr.sprite === "street-lamp") this.night?.addLamp(sprite, iso.x, iso.y + this.TILE_H / 2);
+      if (pr.sprite in LAMPS) this.night?.addLamp(pr.sprite as LampKind, sprite, iso.x, iso.y + this.TILE_H / 2);
     });
   }
 

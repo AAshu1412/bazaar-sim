@@ -3,7 +3,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { Volume2, VolumeX, ZoomIn, ZoomOut, Maximize } from "lucide-react";
 import { IsometricEngineV3 } from "./engine/IsometricEngineV3";
 import { demandModifiers } from "./engine/cityEvents";
-import { clockAt, period } from "./engine/economy";
+import { clockAt, period, SHOP_RENT } from "./engine/economy";
 import { Reports } from "./components/Reports";
 import { useStats, profitOf, shopOn } from "./store/statsStore";
 import { PLACES, price, money, shopKind, type PlaceId } from "./engine/shopKinds";
@@ -106,6 +106,11 @@ export const App: React.FC = () => {
       engine.setDaylight(now.hour < 7 ? 0.28 : now.hour < 8 ? 0.14 : now.hour < 17 ? 0 : Math.min(0.52, (now.hour - 16) * 0.12));
       if (now.day !== day) {
         day = now.day;
+        // practice mode charges rent here; with a wallet the rollup's crank does it
+        if (!gameChain.live) {
+          setPracticeGd((g) => Math.max(0, g - SHOP_RENT));
+          useStats.getState().paidRent(SHOP_RENT * 100);
+        }
         const yesterday = useStats.getState().days.at(-1)!;
         useStats.getState().startDay(day);
         const repriced = engine.newDay();
@@ -158,6 +163,14 @@ export const App: React.FC = () => {
     const id = setInterval(sync, 700); // also covers the engine finishing its async load after the first chain update
     return () => { clearInterval(id); useGameStore.setState({ activeEvent: "Quiet", eventTarget: 0 }); };
   }, [live]);
+
+  // rent charged on-chain goes into today's books
+  const rentSeen = useRef<number | null>(null);
+  useEffect(() => {
+    if (!live) { rentSeen.current = null; return; }
+    if (rentSeen.current !== null && chain.rentPaidGd > rentSeen.current) useStats.getState().paidRent(Math.round((chain.rentPaidGd - rentSeen.current) * 100));
+    rentSeen.current = chain.rentPaidGd;
+  }, [live, chain.rentPaidGd]);
 
   // Live Pyth SOL/USD every 15s; push the signal on-chain every 5 min
   useEffect(() => {
@@ -222,7 +235,7 @@ export const App: React.FC = () => {
     { title: "This is your coffee shop", body: "You own the corner plot marked YOUR SHOP. Each shopper wants one thing, shown over their head. Coffee drinkers pick between you and the other coffee houses.", action: { label: "Show me", run: () => openShop(0) } },
     { title: "Price it to win", body: "Too dear and shoppers leave; too cheap and you earn little. Reports shows where they went and suggests a price.", action: { label: "Open price", run: () => openShop(0) } },
     { title: "Play for real on devnet", body: "Select Wallet (top right), then Start session. That is the only approval: every move after it is signed for you." },
-    { title: "Never run dry", body: "Restock from your shop, or bid for a bigger lot at the Town Hall auction. The Town button lists every shop and building.", action: { label: "Town board", run: () => setBoardOpen(true) } },
+    { title: "Never run dry", body: `Restock from your shop or bid at the Town Hall auction. Your shop pays ${money(SHOP_RENT)} rent every day, so keep selling.`, action: { label: "Town board", run: () => setBoardOpen(true) } },
   ];
 
   return (

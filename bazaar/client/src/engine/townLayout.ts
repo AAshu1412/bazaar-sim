@@ -28,7 +28,7 @@ export interface PlotSlot {
   tier: PlotTier;
   entrance: Point;
 }
-export interface Prop { sprite: string; gx: number; gy: number; scale: number }
+export interface Prop { sprite: string; gx: number; gy: number; scale: number; flip?: boolean }
 
 const hash = (x: number, y: number, s = 0) => (((x * 73856093) ^ (y * 19349663) ^ ((s + 1) * 83492791)) >>> 0) % 1000 / 1000;
 
@@ -131,5 +131,19 @@ for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
 }
 // a few hedges/trees framing the ring road inside the blocks' corners
 for (const [x, y] of [[5, 6], [22, 6], [5, 21], [22, 21]]) if (net[y][x] === "sidewalk") props.push({ sprite: "tree-birch", gx: x, gy: y, scale: 0.6 });
+
+/** a prop standing at grid point (x, y) rather than in the middle of tile (x, y) */
+const at = (sprite: string, x: number, y: number, scale: number, flip = false) => props.push({ sprite, gx: x - 0.5, gy: y - 0.5, scale, flip });
+// the plaza: an ornamental lamp on each side of the fountain, a bench in each corner facing it
+for (const [x, y] of [[13.12, 14.88], [14.88, 13.12]]) at("plaza-lamp", x, y, 0.85);
+at("bench-back", 12.55, 12.55, 0.9);
+at("bench-back", 15.45, 12.55, 0.9);
+at("bench-back", 12.55, 15.45, 0.9, true);
+at("bench-front", 15.45, 15.45, 0.9);
+// park lamps, placed here so they switch on and off like the others
+for (const lot of lots) {
+  if (lot.sprite === "park-garden") at("street-lamp", lot.gx + 1, lot.gy + 1, 0.62);
+  if (lot.sprite === "park-statue") for (const dx of [-0.7, 0.7]) at("street-lamp", lot.gx + 1 + dx, lot.gy + 1, 0.62);
+}
 
 export const TOWN = { tiles, walk, lots, plotSlots, props };

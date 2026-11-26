@@ -17,12 +17,15 @@ import {
 import { PROGRAM_ID, router, ER_ENABLED, VRF_QUEUE, VRF_PROGRAM_ID } from "./router";
 import { IX } from "./idlSpec";
 import { money } from "../engine/shopKinds";
+import { SHOP_RENT, MAX_RENT_DAYS, DAY_SECONDS } from "../engine/economy";
 import { SOL_FEED_ID, BTC_FEED_ID, hermesUrl } from "./pyth";
 
 export const SESSION_PROGRAM_ID = new PublicKey("KeyspM2ssCJbqUhQ4k7sveSiY4WjnYsrXkC8oDbwde5");
 export const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 export const GD_UNIT = 100; // raw units per GD (mint has 2 decimals)
 const SEASON_ID = 1n;
+/** renew the rent schedule before its days run out */
+const RENT_RENEW_MS = (MAX_RENT_DAYS - 2) * DAY_SECONDS * 1000;
 /** how often the rollup shop is saved to devnet while you play (only if something changed) */
 const SAVE_EVERY_MS = 5 * 60_000;
 const PLOT_ID = 0;
@@ -59,6 +62,7 @@ export interface ChainState {
   unsettledGd: number;
   detail?: string;
   cityEvent: CityEvent | null; // active VRF event
+  rentPaidGd: number; // all rent your shop has paid
 }
 export interface AuctionOutcome {
   won: boolean;
@@ -75,7 +79,7 @@ const u32 = (n: number) => { const b = Buffer.alloc(4); b.writeUInt32LE(n); retu
 const u16 = (n: number) => { const b = Buffer.alloc(2); b.writeUInt16LE(n); return b; };
 const i64 = (n: number | bigint) => { const b = Buffer.alloc(8); b.writeBigInt64LE(BigInt(n)); return b; };
 
-const EMPTY: ChainState = { phase: "disconnected", sessionSol: 0, gd: 0, inventory: 0, priceCents: 275, pendingPrice: null, unitCostCents: 137, upgrades: 0, lifetimeRevenueGd: 0, customersServed: 0, pendingSales: 0, erMode: false, settling: false, unsettledGd: 0, cityEvent: null };
+const EMPTY: ChainState = { phase: "disconnected", sessionSol: 0, gd: 0, inventory: 0, priceCents: 275, pendingPrice: null, unitCostCents: 137, upgrades: 0, lifetimeRevenueGd: 0, customersServed: 0, pendingSales: 0, erMode: false, settling: false, unsettledGd: 0, cityEvent: null, rentPaidGd: 0 };
 
 export class GameChain {
   private conn: Connection = router.baseConn;
@@ -95,6 +99,7 @@ export class GameChain {
   private eventSub: number | null = null;
   private saveTimer: ReturnType<typeof setInterval> | null = null;
   private saveCapped = false; // this delegation has used up its saves
+  private rentTimer: ReturnType<typeof setInterval> | null = null;
   private eventTimers: ReturnType<typeof setTimeout>[] = [];
   private lastSendWasEr = false;
 
@@ -280,6 +285,9 @@ export class GameChain {
     this.startCityEvents();
     if (this.saveTimer) clearInterval(this.saveTimer);
     this.saveTimer = setInterval(() => this.saveToDevnet().catch(() => {}), SAVE_EVERY_MS);
+    this.scheduleRent(true);
+    if (this.rentTimer) clearInterval(this.rentTimer);
+    this.rentTimer = setInterval(() => this.scheduleRent(), RENT_RENEW_MS);
   }
 
   // ---------- Ephemeral Rollup lifecycle ----------
@@ -355,6 +363,19 @@ export class GameChain {
     }
   }
 
+  /** Ask MagicBlock's scheduler (a crank) to charge rent every game day; it runs on the rollup, not in this tab. */
+  scheduleRent(announce = false) {
+    return this.enqueue(async () => {
+      if (!this.live || !this.state.erMode || this.state.settling) return;
+      try {
+        const signature = await this.send([this.ix("schedule_rent", u16(MAX_RENT_DAYS), this.common())], 200_000, true);
+        if (announce) this.log("TICK", { message: `Rent is ${money(SHOP_RENT)} a day, charged by a MagicBlock crank`, signature, latencyMs: 0, isLive: true, er: true });
+      } catch (e) {
+        this.log("TICK", { message: `Rent crank not scheduled: ${String((e as { message?: string })?.message ?? e).slice(0, 60)}`, signature: "sim-rent", latencyMs: 0, isLive: false });
+      }
+    });
+  }
+
   /**
    * Cash out: commit the rollup state and return the shop to devnet, move the session's net GD into your token
    * account (settle_shop), then delegate again and keep playing.
@@ -384,6 +405,7 @@ export class GameChain {
         this.saveCapped = false; // a new delegation gets 10 fresh saves
         await this.timed("TICK", "Shop delegated to the Ephemeral Rollup again", () => this.send([this.delegateIx(validator)], 400_000));
         await this.waitFor(async () => !!(await router.erConn.getAccountInfo(this.ledger)), 30_000, "the rollup to receive the shop");
+        setTimeout(() => this.scheduleRent(), 0); // after this settle releases the queue
       } catch (e) {
         this.log("SETTLE", { message: `Settle did not finish: ${String((e as { message?: string })?.message ?? e).slice(0, 80)}`, signature: "sim-settle", latencyMs: 0, isLive: false });
         // if the shop already left the rollup, this pays out the pending ledger and delegates again
@@ -403,6 +425,12 @@ export class GameChain {
     if (!ER_ENABLED) return;
     let clear: ReturnType<typeof setTimeout> | undefined;
     this.eventSub = router.erConn.onLogs(this.ledger, ({ logs, signature, err }) => {
+      const rent = !err && logs.join(" ").match(/RentPaid amount=(\d+)/);
+      if (rent) {
+        this.log("TICK", { message: `Rent paid: ${money(Number(rent[1]) / GD_UNIT)} (MagicBlock crank)`, signature, latencyMs: 0, isLive: true, er: true });
+        this.refresh().catch(() => {});
+        return;
+      }
       const event = !err && parseCityEvent(logs);
       if (!event) return;
       this.set({ cityEvent: { ...event, signature } });
@@ -433,7 +461,8 @@ export class GameChain {
   disconnect() {
     this.stopCityEvents();
     if (this.saveTimer) clearInterval(this.saveTimer);
-    this.saveTimer = null;
+    if (this.rentTimer) clearInterval(this.rentTimer);
+    this.saveTimer = this.rentTimer = null;
     this.runId++;
     if (this.pollTimer) clearInterval(this.pollTimer);
     if (this.saleTimer) clearTimeout(this.saleTimer);
@@ -489,7 +518,9 @@ export class GameChain {
       next.priceCents = d.readUInt16LE(o); o += 2;
       next.upgrades = d[o]; o += 1;
       o += d[o] === 1 ? 33 : 1; // Option<Pubkey> manager
-      o += 8 + 24; // revenue_today, revenue_trailing_3d
+      o += 8; // revenue_today
+      next.rentPaidGd = Number(d.readBigUInt64LE(o + 8)) / GD_UNIT; // rent_paid_at, rent_paid_total, reserved
+      o += 24;
       next.inventory = d.readUInt32LE(o); o += 4;
       next.unitCostCents = d.readUInt16LE(o); o += 2;
       next.lifetimeRevenueGd = Number(d.readBigUInt64LE(o)) / GD_UNIT;

@@ -5,6 +5,8 @@
 export type Trade = "CoffeeCart" | "StreetFood" | "Electronics" | "FlowerStall" | "Bookshop";
 export const TRADES: Trade[] = ["CoffeeCart", "StreetFood", "Electronics", "FlowerStall", "Bookshop"];
 
+/** daily rent your shop pays to the town (matches SHOP_RENT_GD in the program) */
+export const SHOP_RENT = 20, MAX_RENT_DAYS = 12;
 export const OPEN_HOUR = 6, CLOSE_HOUR = 22, DAY_SECONDS = 150;
 export function clockAt(seconds: number) {
   const into = (seconds % DAY_SECONDS) / DAY_SECONDS;

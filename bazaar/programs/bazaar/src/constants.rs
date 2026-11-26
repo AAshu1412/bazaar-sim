@@ -12,6 +12,14 @@ pub const MAIN_STREET_RENT_GD: u64 = 500;
 pub const SIDE_STREET_RENT_GD: u64 = 250;
 pub const ALLEY_RENT_GD: u64 = 80;
 
+/// daily rent a shop pays to the town while it trades on the rollup, and the length of that day
+pub const SHOP_RENT_GD: u64 = 20;
+pub const RENT_DAY_SECS: i64 = 150;
+/// how early a scheduled run may arrive and still count as the next day
+pub const RENT_GRACE_SECS: i64 = 10;
+/// a schedule covers at most this many days; the client renews it while the player is around
+pub const MAX_RENT_DAYS: u16 = 12;
+
 pub const BASE_DEMAND: u64 = 8;
 pub const AUCTION_WINDOW_SECS: i64 = 15;
 pub const SCOUT_COST_GD: u64 = 500;

@@ -15,7 +15,9 @@ use ephemeral_rollups_sdk::vrf::{
     instructions::{create_request_randomness_ix_const, RequestRandomnessParams},
     types::SerializableAccountMeta,
 };
-use anchor_lang::solana_program::{instruction::Instruction, program::invoke_signed};
+use anchor_lang::solana_program::{instruction::{AccountMeta, Instruction}, program::{invoke, invoke_signed}};
+use magicblock_magic_program_api::{args::ScheduleTaskArgs, instruction::MagicBlockInstruction};
+use ephemeral_rollups_sdk::consts::MAGIC_PROGRAM_ID;
 use ephemeral_rollups_sdk::cpi::DelegateConfig;
 use ephemeral_rollups_sdk::ephem::{commit_accounts, commit_and_undelegate_accounts};
 use session_keys::{session_auth_or, Session, SessionError, SessionToken};
@@ -489,6 +491,97 @@ pub fn handle_callback_city_event(_ctx: Context<CallbackCityEvent>, randomness: 
     Ok(())
 }
 
+// ───────────── Cranks: daily rent, run by the rollup's scheduler ─────────────
+
+#[derive(Accounts)]
+pub struct ChargeRent<'info> {
+    #[account(seeds = [b"season", season.authority.as_ref(), season.id.to_le_bytes().as_ref()], bump)]
+    pub season: Account<'info, Season>,
+    #[account(mut, constraint = business.season_id == season.id @ BazaarError::InvalidPlot)]
+    pub business: Account<'info, Business>,
+    #[account(mut, seeds = [b"ledger", business.key().as_ref()], bump)]
+    pub ledger: Account<'info, ShopLedger>,
+}
+
+/// Charges one day's rent if a day has passed. A scheduled task cannot sign, so this is open to anyone and safe
+/// because the clock decides: calling it early or twice does nothing, and missed days are not charged back.
+pub fn handle_er_charge_rent(ctx: Context<ChargeRent>) -> Result<()> {
+    let now = Clock::get()?.unix_timestamp;
+    let b = &mut ctx.accounts.business;
+    if b.rent_paid_at == 0 {
+        b.rent_paid_at = now; // the first day starts now
+        return Ok(());
+    }
+    let amount = SHOP_RENT_GD * GD_UNIT;
+    // an unaffordable day stays due and is taken by a later run
+    if !rent_is_due(b.rent_paid_at, now) || available(&ctx.accounts.ledger) < amount as i64 {
+        return Ok(());
+    }
+    ctx.accounts.ledger.gd_credit -= amount as i64;
+    b.rent_paid_at = now;
+    b.rent_paid_total = b.rent_paid_total.saturating_add(amount);
+    msg!("RentPaid amount={} total={}", amount, b.rent_paid_total);
+    Ok(())
+}
+
+fn rent_is_due(paid_at: i64, now: i64) -> bool {
+    now.saturating_sub(paid_at) >= RENT_DAY_SECS - RENT_GRACE_SECS
+}
+
+#[derive(Accounts, Session)]
+pub struct ScheduleRent<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    #[account(seeds = [b"season", season.authority.as_ref(), season.id.to_le_bytes().as_ref()], bump)]
+    pub season: Account<'info, Season>,
+    #[account(mut, constraint = business.season_id == season.id @ BazaarError::InvalidPlot)]
+    pub business: Account<'info, Business>,
+    #[account(mut, seeds = [b"ledger", business.key().as_ref()], bump)]
+    pub ledger: Account<'info, ShopLedger>,
+    /// CHECK: the MagicBlock program
+    #[account(address = MAGIC_PROGRAM_ID)]
+    pub magic_program: UncheckedAccount<'info>,
+    #[session(signer = payer, authority = business.owner.key())]
+    pub session_token: Option<Account<'info, SessionToken>>,
+}
+
+/// Asks the rollup to run `er_charge_rent` once per day for `days` days. Scheduling again replaces the schedule.
+#[session_auth_or(ctx.accounts.business.owner == ctx.accounts.payer.key(), BazaarError::Unauthorized)]
+pub fn handle_schedule_rent(ctx: Context<ScheduleRent>, days: u16) -> Result<()> {
+    let a = &ctx.accounts;
+    let charge = Instruction {
+        program_id: crate::ID,
+        accounts: vec![
+            AccountMeta::new_readonly(a.season.key(), false),
+            AccountMeta::new(a.business.key(), false),
+            AccountMeta::new(a.ledger.key(), false),
+        ],
+        data: anchor_lang::InstructionData::data(&crate::instruction::ErChargeRent {}),
+    };
+    let task_id = i64::from_le_bytes(a.business.key().to_bytes()[..8].try_into().unwrap()) & i64::MAX;
+    // the rollup's scheduler (Hydra on validator 2.x) takes the task and runs it
+    let schedule = Instruction::new_with_bincode(
+        MAGIC_PROGRAM_ID,
+        &MagicBlockInstruction::ScheduleTask(ScheduleTaskArgs {
+            task_id,
+            execution_interval_millis: RENT_DAY_SECS * 1000,
+            iterations: days.clamp(1, MAX_RENT_DAYS) as i64,
+            instructions: vec![charge],
+        }),
+        vec![
+            AccountMeta::new(a.payer.key(), true),
+            AccountMeta::new_readonly(a.season.key(), false),
+            AccountMeta::new(a.business.key(), false),
+            AccountMeta::new(a.ledger.key(), false),
+        ],
+    );
+    invoke(
+        &schedule,
+        &[a.payer.to_account_info(), a.season.to_account_info(), a.business.to_account_info(), a.ledger.to_account_info(), a.magic_program.to_account_info()],
+    )?;
+    Ok(())
+}
+
 #[commit]
 #[derive(Accounts, Session)]
 pub struct CommitShop<'info> {
@@ -539,6 +632,14 @@ mod tests {
             assert!(auction_rivals(&r, 10_000).iter().all(|b| (6_000..=11_900).contains(b)));
         }
         assert_eq!(auction_rivals(&[0; 32], 0), [1; 3]);
+    }
+
+    #[test]
+    fn rent_is_charged_at_most_once_a_day() {
+        assert!(!rent_is_due(1_000, 1_000));
+        assert!(!rent_is_due(1_000, 1_000 + RENT_DAY_SECS - RENT_GRACE_SECS - 1));
+        assert!(rent_is_due(1_000, 1_000 + RENT_DAY_SECS - RENT_GRACE_SECS));
+        assert!(!rent_is_due(i64::MAX, 0));
     }
 
     #[test]
