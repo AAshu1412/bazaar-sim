@@ -1,159 +1,112 @@
 <p align="center"><img src="client/public/logo/logo.svg" width="420" alt="Bazaar"></p>
 
-# 🏛️ Bazaar v2: The First Onchain Tycoon
-> *"A persistent 2.5D isometric neighborhood economy running on 8 load-bearing MagicBlock primitives."*
-> **Built for MagicBlock Solana Blitz v10 Hackathon**
+# Bazaar
 
----
+A shop-keeping game on Solana devnet, built for the MagicBlock Solana Blitz v10 hackathon. You run a coffee house in an isometric market town: set your price, keep the shelves stocked, bid for wholesale stock, and read the numbers to beat the other coffee houses. Your shop, its money and its auctions are on-chain; the town around it is simulated in the browser.
 
-## 🌟 Overview
+Program (devnet): [`GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb`](https://explorer.solana.com/address/GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb?cluster=devnet)
 
-**Bazaar v2** is a live multiplayer economic simulation running on Solana and MagicBlock Ephemeral Rollups. Players manage commercial stalls across a 28×28 isometric neighborhood, compete in sealed-bid wholesale auctions on TDX Private ERs, borrow against property from an automated NPC bank, reprice stalls sub-50ms with session keys, hire autonomous bot managers, and react to live Pyth Lazer oracle price shocks.
+## How it plays
 
----
+- Each shopper wants one thing, shown over their head. The mix shifts through the day (coffee in the morning, food at lunch).
+- Shoppers have a budget and pick among shops selling what they want, weighing price, foot traffic and brand.
+- Rivals restock overnight and raise or cut prices depending on how their day went.
+- Every shop has analytics: sales, market share, shoppers by hour, why they went elsewhere. Yours adds profit and a price advisor.
+- Without a wallet the game runs in practice mode, entirely in the browser.
 
-## 🔑 Wallet, session keys and GD (how the on-chain game works)
+## MagicBlock
 
-- **Connect any Solana wallet** (Phantom, Solflare, Backpack via the Wallet Standard). Connecting asks for nothing.
-- **One approval, then no popups.** "Start session" signs a single transaction that authorises a MagicBlock session key (`session-keys` program) and tops it up with 0.04 SOL for fees. Every game transaction after that (create season, join, claim plot, open shop, reprice, restock, upgrades, customer payments, Pyth signals) is signed by the session key. The key is scoped to this program, expires in 6 days and lives in `localStorage`.
-- **GD is a real SPL token** (2 decimals, minted per season). Joining mints you 10,000 GD; the plot (3,000 GD) and shop (2,000 GD) are paid in GD to the town treasury. GD token accounts are owned by the program, so players cannot move GD out.
-- **The town's customers pay for real.** Each simulated customer who buys from your shop becomes a `serve_customers` call that moves `price x n` GD from the treasury (10M GD minted at season creation) to you and takes stock. Your balance rises with sales and falls with restocking and upgrades.
-- Other shops on the map are still simulated bots; only your shop is on-chain.
+| Feature | What the game uses it for |
+|---|---|
+| **Session keys** | One wallet approval, then every game transaction is signed by a program-scoped session key (6 days) |
+| **Ephemeral Rollup** | The shop and its ledger are delegated; repricing, customer payments, restocking, upgrades, auctions and events run on `devnet.magicblock.app` |
+| **Undelegate and settle** | The **Settle** button returns the shop to devnet, pays your GD into your token account and delegates again |
+| **VRF** | Draws the three rival bids in each auction after yours is locked in, and a city event every 60 s |
 
-- **Ephemeral Rollup.** After setup the shop is delegated to a MagicBlock ER: pricing, restocking, upgrades, auctions and customer payments run there. Delegating escrows your GD in the treasury; **Settle** brings the shop back and pays it out. Disable with `VITE_ER=off`.
-- **VRF.** Auction rival bids and the city event drawn every minute come from MagicBlock VRF callbacks on the rollup. Local testing needs `anchor build --arch v0 -- --features localnet` (never deploy that build).
+### Verified on devnet (26 Nov 2026)
 
-Deploy notes: program ID is `GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb` (the earlier `394dL2jz…` deployment belongs to another upgrade authority). Build with `yarn build` (SBPF v0; v3 is not active on devnet/mainnet), then first deploy: `solana program deploy target/deploy/bazaar.so --program-id target/deploy/bazaar-keypair.json -u devnet`. Later upgrades: `solana program deploy target/deploy/bazaar.so --program-id GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb -u https://rpc.magicblock.app/devnet` (the public devnet RPC often answers 429; `devnet.magicblock.app` is the rollup and cannot deploy) (run `solana program extend` first if the binary grew). After changing the program run `node client/scripts/gen-idl-spec.mjs`.
+| Step | Layer | Example transaction |
+|---|---|---|
+| Create session | devnet | [3XA1xUBt…](https://explorer.solana.com/tx/3XA1xUBtBcE2vGNvKtSwqQGTMb86siJuSgyWNrQDSVcDoKyk5WU7vR1BLPBpypjk1JWFHxfLqeGb6LUWbfJcd4MX?cluster=devnet) |
+| Delegate shop | devnet | [47HeuYUi…](https://explorer.solana.com/tx/47HeuYUiUgpeBRraGCUJtZJhZSEeZzUyBaDndPtbuuKAsXesUFHGLxHzXvgyvKRUkM51rYHXDcYtFW1DTELKk2yu?cluster=devnet) |
+| Reprice | rollup | [5yMs26PU…](https://explorer.solana.com/tx/5yMs26PU4h9XU68NYdbpESpHEq825iQpMeoBenZ4dkYDm3pExsAoyrHaCpTCBLYcmLteBf1SCyg9R1poAYcsse8r?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
+| Customers pay | rollup | [2zm1Ybgm…](https://explorer.solana.com/tx/2zm1YbgmivjJih2Qd2GeKXKV6Lqp6Y4JgrVNqDxEWnMoivMbtq4y4EW3EQmwwTt3sfsats9FZZJ9kAyd18gz57gE?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
+| Auction bid | rollup | [3VAFTMja…](https://explorer.solana.com/tx/3VAFTMjaJi2dYfjn29XJeDNarXwrPBGiPTrGSQ8Q9ncUoXdtUtUMRF7jwFgpn9VJNLmz99iiq26Lq22B2pSRmk8X?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
+| VRF answers the auction | rollup | [4DyrNWw1…](https://explorer.solana.com/tx/4DyrNWw16ihkQcvs753Bf6xAojKwiYY1m14HLm7iysYCM8TFvQYU4b9s5L5bd3pPEeMSRT2sfGvf41CXM5cLNzHC?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
+| City event request | rollup | [4ZFz87fS…](https://explorer.solana.com/tx/4ZFz87fSxaGnuv2D76eGAmJeSRWJydE1wPtob64cDZhLYiMzG3ukPaD9WBNpu6UtCx1iebjDaGkeFicp781DknoQ?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
+| VRF answers the event | rollup | [23uAgDeD…](https://explorer.solana.com/tx/23uAgDeDgoLxF38QzSg9CAhYSwf4DKpjBLePSZ8m2pbVTKnmrTPTrniZc3rR7yiK4rwsJXqzr2DZyjnzGDKf1LUV?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
+| Undelegate | rollup | [5VNw2CvK…](https://explorer.solana.com/tx/5VNw2CvKaYs1b7VMcAbWpRJ2Xanijq4bZix2wdoQ9FALGo3ttqkTwY2QgNXDmHEfXsgj2bugn8qRVE4jDtrrLNS9?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
+| Settle | devnet | [48mWCaWw…](https://explorer.solana.com/tx/48mWCaWwyYVbuYehvGA4HJcpqDWXRzHGVW7y4VVBw1gG3h1gAVqaRDCcQuu1EsQMuSCK6pPKQtomWSm8teCWPHgC?cluster=devnet) |
 
----
+Rollup history is not kept forever, so older rollup links may stop resolving.
 
-## 🏗️ 8 Load-Bearing MagicBlock Primitives
+### Known gaps
 
-1. **Ephemeral Rollups (ER):** Sub-50ms 1-second customer transaction ticks and session key repricing with zero base-layer congestion.
-2. **Private ER (PER):** TDX enclave encryption for sealed-bid supply auctions and secret M&A buyout bids to prevent frontrunning and mempool sniping.
-3. **Session Keys:** Gasless, popup-free instant repricing and inventory management delegated to temporary burner keys with strict instruction-level scope.
-4. **Cranks:** Autonomous recurring execution for rent collection, interest accrual, Dutch auction liquidations, and day/night transitions.
-5. **VRF (Verifiable Random Function):** Verifiably random weather and market events (Demand Surge, Supply Shock, Viral Stall).
-6. **Ephemeral SPL:** In-round, high-velocity GD token circulation that settles atomically to base Solana upon season closing bell.
-7. **Magic Actions:** Seamless composability between external Solana DeFi and internal market mechanics.
-8. **Pyth Lazer Oracles:** Real-time SOL/USD and BTC feeds driving dynamic demand for high-tier goods (Arcane & Clockwork tech).
+- **State reaches devnet only on Settle.** Delegation asks for a commit every 30 s, but no periodic commits were observed on devnet: between settles, the devnet copy of the shop is stale. The program has a `commit_shop` instruction that the client does not call yet.
+- **Restock and upgrades on the rollup** are tested locally; no devnet rollup transaction for them has been seen yet.
+- **Not used:** Private ER, cranks, Magic Actions, Ephemeral SPL, Pyth Lazer.
 
----
+## On-chain and off-chain
 
-## 🚀 Quick Start Guide (Plain & Simple)
+| On-chain | In the browser |
+|---|---|
+| GD, an SPL token (2 decimals), 10,000 minted when you join; held in program-owned accounts | Shoppers, their budgets and choices |
+| Your plot (3,000 GD) and shop (2,000 GD), price, stock, upgrades | Rival shops and their prices |
+| Customer payments from the town treasury | The day clock and analytics |
+| Wholesale auction and its VRF result | Effect of a city event on demand (the draw itself is on-chain) |
+| Pyth SOL/BTC signals stored every 5 minutes | Nothing reads those signals yet |
 
-### Prerequisites
-- **Node.js:** v18 or v20+ (`node -v`)
-- **Rust & Cargo:** 1.79+ (`cargo -V`)
-- **Anchor CLI:** 0.30+ / 0.31+ (`anchor -V`)
-- **Solana CLI:** 1.18+ (`solana -V`)
+Demand is decided by the client and the program trusts it, so a player can pay themselves from their own season's treasury. Bids are public on the rollup. Full detail: [GAME_MECHANICS.md](GAME_MECHANICS.md).
 
----
+## Run it
 
-### Step 1: Clone & Install Dependencies
+Needs Node 20+, a Solana wallet set to devnet, and a little devnet SOL (the session takes 0.04 SOL for fees).
 
 ```bash
-# Navigate to the repository
-cd /home/ashu/projects/ambition/bazaar
-
-# 1. Install Client Dependencies
 cd client
 npm install
-
-# 2. Install Keeper Dependencies
-cd ../keeper
-npm install
-```
-
----
-
-### Step 2: Start the Game Frontend (Diorama & HUD)
-
-```bash
-cd /home/ashu/projects/ambition/bazaar/client
 npm run dev
 ```
-Open **[http://localhost:5173](http://localhost:5173)** in your browser.
 
-- **Diorama View:** 28×28 isometric grid featuring real pixel-art buildings, cobblestone roads, sidewalks, and active pedestrians.
-- **Controls:**
-  - **Left Click + Drag / Touch:** Pan camera across the district.
-  - **Scroll Wheel / Pinch:** Smooth zoom in/out (0.35x to 2.4x).
-  - **WASD / Arrow Keys:** Keyboard panning.
-  - **Click any Plot:** Opens the slide-over **Plot Inspector** to adjust price via Session Key or inspect owners.
-  - **Click Landmarks:**
-    - 🏦 **Bank Vault:** Opens the First District Bank to borrow or repay loans.
-    - 🏛️ **Town Hall:** Rings the bell and accesses sealed-bid wholesale auctions.
-    - 🗺️ **Intel Guild:** Scout competitor reserves and submit confidential buyout bids.
-    - 📜 **Uncle Ravi:** Open the interactive gameplay tutorial.
-    - ⚙️ **Director Toolbar:** Test day/night cycles, Pyth SOL pump, and margin call liquidations.
+Open http://localhost:5173, choose **Select Wallet**, then **Start session**.
 
----
+Optional settings in `client/.env.local`:
 
-### Step 3: Start the Autonomous Keeper (Simulation & Cranks)
+| Variable | Purpose |
+|---|---|
+| `PYTH_API_KEY` | Live SOL price and market signals. Injected by the Vite dev/preview proxy, never bundled |
+| `VITE_RPC_URL` | Base RPC (default `https://rpc.magicblock.app/devnet`) |
+| `VITE_ER_URL` | Rollup RPC (default `https://devnet.magicblock.app`) |
+| `VITE_ER=off` | Play on devnet without the rollup (auctions and events need it) |
 
-In a separate terminal:
+Static hosting (for example Vercel, root directory `client`) serves the game, but the `/hermes` Pyth proxy exists only in the Vite servers, so the price feed needs a serverless replacement there.
+
+## Program
+
+Anchor 1.2.2, in `programs/bazaar/`.
+
 ```bash
-cd /home/ashu/projects/ambition/bazaar/keeper
-npm run dev
-```
-The keeper autonomously simulates:
-- Sub-50ms customer generation and A* street routing.
-- Ephemeral Rollup transaction processing.
-- Automated competitor bots (Undercutter, Price Gouger, Value Balanced).
-- Daily upkeep cranks (rent collection and interest accrual).
-
----
-
-### Step 4: How to Stop Everything
-
-To stop the game at any time:
-1. In the terminal running `client`, press `Ctrl + C`.
-2. In the terminal running `keeper`, press `Ctrl + C`.
-
----
-
-## 🧪 Smart Contract Build & Devnet Deployment
-
-The smart contract is written in modular Anchor/Rust located in `programs/bazaar/`.
-
-### Check & Build
-```bash
-cd /home/ashu/projects/ambition/bazaar/programs/bazaar
-cargo check
+yarn build                      # anchor build --arch v0 (SBPF v3 is not active on devnet)
+cargo test -p bazaar            # program unit tests
+node client/scripts/gen-idl-spec.mjs   # after changing instructions
+cd client && npm run check      # demand model checks
 ```
 
-### Deploy to Solana Devnet
+Upgrade the deployed program (needs the upgrade authority):
+
 ```bash
-# 1. Ensure you have devnet SOL
-solana airdrop 2 --url devnet
-
-# 2. Build the Anchor program
-anchor build
-
-# 3. Deploy to Solana Devnet
-anchor deploy --provider.cluster devnet
-
-# 4. Delegate Season and Plot PDAs to MagicBlock Ephemeral Rollup:
-# MagicBlock Devnet Rollup Router: https://devnet.magicblock.app
+solana program deploy target/deploy/bazaar.so --program-id GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb -u https://rpc.magicblock.app/devnet
 ```
 
----
+To test the rollup locally: run `mb-test-validator` (from `@magicblock-labs/ephemeral-validator`) with Agave 4.2.2 first on `PATH`, then `ephemeral-validator --remotes localhost --listen 127.0.0.1:7799`, and start the client with `VITE_RPC_URL=http://127.0.0.1:8899 VITE_ER_URL=http://127.0.0.1:7799`. The local VRF program charges a fee on its rollup test queue, so VRF was tested on the local base chain with `anchor build --arch v0 -- --features localnet`. Never deploy that build.
 
-## 🎨 Asset & Architecture Guide
+## Layout
 
-- `client/public/assets/buildings/`: 67 authentic 2.5D isometric pixel art PNG sprites.
-- `client/src/engine/IsometricEngineV3.ts`: Viewport-enabled PixiJS v8 engine with road-only A* pathfinding, depth sorting, and day/night lighting.
-- `client/src/engine/buildingRegistry.ts`: Type-safe building mapping for 5 business categories, 6 landmarks, and perimeter architecture.
-- `client/src/components/PlotInspector.tsx`: Gilded Merchant Guild style slide-over card for stall management.
-- `client/src/components/CityLedger.tsx`: Live transaction ticker showing sub-50ms ER/PER latency and verifiable signatures.
-- `programs/bazaar/src/`: Modular smart contract architecture partitioned into `state/` and `instructions/`.
-
----
-
-## 🏆 Hackathon Verifications
-
-- ✅ **Smart Contract:** Clean compile with zero errors on Anchor/Rust (`cargo check`).
-- ✅ **Frontend:** Zero TypeScript errors and production bundle built cleanly with Vite.
-- ✅ **Keeper:** Standalone TypeScript simulation running without missing modules.
-- ✅ **Aesthetic:** 100% pixel-art PNG diorama with zero procedural placeholder boxes.
+| Path | Contents |
+|---|---|
+| `programs/bazaar/src/` | Program: instructions and state |
+| `client/src/solana/` | Wallet session, transactions, rollup routing |
+| `client/src/engine/` | PixiJS town, map signs, demand model |
+| `client/src/components/` | Panels: shop, analytics, town board, auction, guide |
+| `client/art-src/` | Art and logo generators |
+| `keeper/`, `tests/` | Left over from an earlier design; they do not work with this program |

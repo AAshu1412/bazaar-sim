@@ -308,7 +308,7 @@ export class GameChain {
           // an earlier session was undelegated but not settled: pay it out before starting a new one
           await this.timed("TICK", "Settled the previous rollup session", () => this.send([this.ix("settle_shop", Buffer.alloc(0), this.common())], 250_000));
         }
-        await this.timed("TICK", "Shop delegated to the Ephemeral Rollup (commits to devnet every 30 s)", () => this.send([this.delegateIx(validator)], 400_000));
+        await this.timed("TICK", "Shop delegated to the Ephemeral Rollup", () => this.send([this.delegateIx(validator)], 400_000));
       }
       await this.waitFor(async () => !!(await router.erConn.getAccountInfo(this.ledger)), 30_000, "the rollup to receive the shop");
       this.set({ erMode: true });

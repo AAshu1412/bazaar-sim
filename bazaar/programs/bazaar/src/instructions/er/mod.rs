@@ -1,6 +1,6 @@
 //! Ephemeral Rollup flow. Setup (claim plot, open shop) happens on the base layer. `delegate_shop` then hands the
 //! Business and a ShopLedger to the ER validator, where price changes, restocking, upgrades, auctions and customer
-//! payments run at ER speed (and auto-commit every 30 s). `undelegate_shop` commits and returns them to the base
+//! payments run at ER speed. `undelegate_shop` commits and returns them to the base
 //! layer, and `settle_shop` turns the ledger's net GD into real token movement.
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount};
@@ -78,7 +78,7 @@ pub struct DelegateShop<'info> {
 }
 
 /// Escrows the player's GD in the treasury (so it cannot also be spent on the base layer), records it in the
-/// ledger, and hands the shop to the Ephemeral Rollup validator `validator`, committing back every 30 seconds.
+/// ledger, and hands the shop to the Ephemeral Rollup validator `validator`, asking for a commit every 30 seconds (not observed on the devnet rollup).
 #[session_auth_or(ctx.accounts.business.owner == ctx.accounts.payer.key(), BazaarError::Unauthorized)]
 pub fn handle_delegate_shop(ctx: Context<DelegateShop>, validator: Option<Pubkey>) -> Result<()> {
     require!(ctx.accounts.business.season_id == ctx.accounts.season.id, BazaarError::InvalidPlot);
