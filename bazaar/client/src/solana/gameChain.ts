@@ -23,6 +23,8 @@ export const SESSION_PROGRAM_ID = new PublicKey("KeyspM2ssCJbqUhQ4k7sveSiY4WjnYs
 export const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 export const GD_UNIT = 100; // raw units per GD (mint has 2 decimals)
 const SEASON_ID = 1n;
+/** how often the rollup shop is saved to devnet while you play (only if something changed) */
+const SAVE_EVERY_MS = 5 * 60_000;
 const PLOT_ID = 0;
 const SESSION_TOPUP = 0.04 * LAMPORTS_PER_SOL; // covers ~0.013 SOL of account rent + thousands of tx fees
 const WALLET_NEEDS = SESSION_TOPUP + 0.004 * LAMPORTS_PER_SOL; // + session-token rent + fee
@@ -91,6 +93,8 @@ export class GameChain {
   private log: Log = () => {};
   private runId = 0;
   private eventSub: number | null = null;
+  private saveTimer: ReturnType<typeof setInterval> | null = null;
+  private saveCapped = false; // this delegation has used up its saves
   private eventTimers: ReturnType<typeof setTimeout>[] = [];
   private lastSendWasEr = false;
 
@@ -274,6 +278,8 @@ export class GameChain {
     if (this.pollTimer) clearInterval(this.pollTimer);
     this.pollTimer = setInterval(() => this.refresh().catch(() => {}), 3000);
     this.startCityEvents();
+    if (this.saveTimer) clearInterval(this.saveTimer);
+    this.saveTimer = setInterval(() => this.saveToDevnet().catch(() => {}), SAVE_EVERY_MS);
   }
 
   // ---------- Ephemeral Rollup lifecycle ----------
@@ -299,6 +305,7 @@ export class GameChain {
   /** Delegate the shop (Business + ledger) to the Ephemeral Rollup; fall back to base-layer play if it is unavailable. */
   private async enterEr() {
     if (!ER_ENABLED) return;
+    this.saveCapped = false; // (if the old delegation is still used up, the next save says so again)
     try {
       if (!(await this.isDelegated())) {
         const validator = await this.erValidator();
@@ -321,6 +328,33 @@ export class GameChain {
       this.log("TICK", { message: delegated ? `Ephemeral Rollup is slow to respond: ${why}` : `Ephemeral Rollup unavailable, playing on devnet: ${why}`, signature: "sim-er", latencyMs: 0, isLive: false });
     }
   }
+  /**
+   * Save without leaving the rollup: commit_shop copies the shop and ledger to devnet. Nothing is paid out.
+   * Skipped when devnet is already current, because the rollup only allows a few saves per delegation.
+   */
+  async saveToDevnet(): Promise<boolean> {
+    if (!this.live || !this.state.erMode || this.state.settling || this.saveCapped) return false;
+    const read = async (conn: Connection) => Buffer.concat((await conn.getMultipleAccountsInfo([this.business, this.ledger])).map((a) => a!.data));
+    const [onRollup, before] = await Promise.all([read(router.erConn), read(this.conn)]);
+    if (onRollup.equals(before)) return false;
+    try {
+      await this.enqueue(async () => {
+        if (this.state.settling) return;
+        await this.send([this.ix("commit_shop", Buffer.alloc(0), this.common())], 200_000, true);
+      });
+      await this.waitFor(async () => !(await read(this.conn)).equals(before), 40_000, "devnet to receive the save");
+      const [last] = await this.conn.getSignaturesForAddress(this.ledger, { limit: 1 }, "confirmed");
+      this.log("TICK", { message: "Shop saved to devnet", signature: last?.signature ?? "sim-save", latencyMs: 0, isLive: true, er: false });
+      return true;
+    } catch (e) {
+      const why = String((e as { message?: string })?.message ?? e);
+      // 0xA0000000: the rollup allows 10 saves per delegation
+      this.saveCapped = why.includes("2684354560");
+      this.log("TICK", { message: this.saveCapped ? "Save limit reached (10 per delegation). Press Settle to keep saving." : `Could not save to devnet: ${why.slice(0, 60)}`, signature: "sim-save", latencyMs: 0, isLive: false });
+      return false;
+    }
+  }
+
   /**
    * Cash out: commit the rollup state and return the shop to devnet, move the session's net GD into your token
    * account (settle_shop), then delegate again and keep playing.
@@ -347,6 +381,7 @@ export class GameChain {
         } else {
           await this.timed("SETTLE", "Settled your rollup cash to your wallet token account", () => this.send([this.ix("settle_shop", Buffer.alloc(0), this.common())], 250_000));
         }
+        this.saveCapped = false; // a new delegation gets 10 fresh saves
         await this.timed("TICK", "Shop delegated to the Ephemeral Rollup again", () => this.send([this.delegateIx(validator)], 400_000));
         await this.waitFor(async () => !!(await router.erConn.getAccountInfo(this.ledger)), 30_000, "the rollup to receive the shop");
       } catch (e) {
@@ -397,6 +432,8 @@ export class GameChain {
 
   disconnect() {
     this.stopCityEvents();
+    if (this.saveTimer) clearInterval(this.saveTimer);
+    this.saveTimer = null;
     this.runId++;
     if (this.pollTimer) clearInterval(this.pollTimer);
     if (this.saleTimer) clearTimeout(this.saleTimer);

@@ -81,7 +81,7 @@ pub struct DelegateShop<'info> {
 }
 
 /// Escrows the player's GD in the treasury (so it cannot also be spent on the base layer), records it in the
-/// ledger, and hands the shop to the Ephemeral Rollup validator `validator`, asking for a commit every 30 seconds (not observed on the devnet rollup).
+/// ledger, and hands the shop to the Ephemeral Rollup validator `validator`, asking for a commit every 30 seconds (not observed: the client calls commit_shop instead).
 #[session_auth_or(ctx.accounts.business.owner == ctx.accounts.payer.key(), BazaarError::Unauthorized)]
 pub fn handle_delegate_shop(ctx: Context<DelegateShop>, validator: Option<Pubkey>) -> Result<()> {
     require!(ctx.accounts.business.season_id == ctx.accounts.season.id, BazaarError::InvalidPlot);
