@@ -53,7 +53,7 @@ export const PlotInspector: React.FC<Props> = ({ plot, rivals, myPriceCents, gd,
         onClose={onClose}
       />
       <div className="space-y-3 overflow-y-auto p-4">
-        <InteriorBanner src={interiorFor(empty ? "Vacant" : plot.businessType, plot.isUpgraded)} alt={empty ? "Empty lot" : `Inside the ${kind.name.toLowerCase()}`} />
+        <InteriorBanner className="[@media(max-height:760px)]:hidden" src={interiorFor(empty ? "Vacant" : plot.businessType, plot.isUpgraded)} alt={empty ? "Empty lot" : `Inside the ${kind.name.toLowerCase()}`} />
 
         {empty ? (
           <>

@@ -46,11 +46,10 @@ A different, unused formula exists in `programs/bazaar/src/utils.rs` (`calculate
 When a simulated customer buys from plot #0, the client calls `recordSale()`. Sales are batched (every ~2.5 s, up to 20) into one `serve_customers(count)` transaction. The program moves `price x n` GD from the treasury to your GD account, reduces stock by n, adds to revenue, and counts customers served. If stock is 0 it fails and the UI shows "sold out, restock".
 **Trust issue:** the program does not check that customers really came. Only the season authority (your own session key) may call it, but in your own season that is you, so you could "sell" to yourself. Fine for solo play, exploitable for any leaderboard/prize.
 
-## 7. Shop actions (plot #0 inspector panel)
-- **Reprice** slider $1.00-$6.00 [ON-CHAIN]: `set_business_price`, debounced 0.6 s. The slider shows your pending price until the chain confirms.
-- **Restock +20 (-30 GD)** [ON-CHAIN]: `restock(units)`. Pays `unit_cost x units` to the treasury, stock += units. Cap 200 units (400 with the Storage upgrade).
+## 7. Shop actions (My shop panel)
+- **Reprice** (stepper and slider, $1.00-$6.00) [ON-CHAIN]: `set_business_price` (`er_` path on the rollup), debounced 0.6 s.
+- **Restock +20** (about 27 GD = 20 x unit cost) [ON-CHAIN]: pays the treasury, stock += 20. Cap 200 units (400 with the Storage upgrade). In practice mode it is local.
 - **Signage (-1,000 GD)** [ON-CHAIN purchase; effect CLIENT-SIM]: sets upgrade flag 1. In the game it only adds +0.35 to your customer score (and flips `isUpgraded`). The other upgrade flags exist in the program (2 Storage = doubles cap, 4 Second Counter, 8 Brand) but have no UI, and only Storage changes anything on-chain; Second Counter and Brand have no effect anywhere.
-- **Hire Manager** [UI-ONLY]: just opens the Director toolbar. The `hire_manager`/`fire_manager` instructions exist but are never called.
 
 ## 8. Wholesale auction (Town Hall landmark, or the left-rail Auction button)  [ON-CHAIN, Ephemeral Rollup + MagicBlock VRF]
 `er_bid_auction(auction_id, units=100, bid)`: sealed first-price auction. The program reserves your bid in the shop ledger and requests randomness from **MagicBlock VRF** (rollup queue, fee-exempt). The oracle answers with `callback_auction(randomness)`, which only the VRF program can sign for. It draws **three rival bids**, each 60-119% of the lot's wholesale value (units x unit cost, about 137 GD), so they do not exist when you bid. Highest bid wins; ties go to rivals. **Winner pays their own bid and gets +100 stock; a loser's bid is returned.** One pending auction per shop; an unanswered one can be replaced after 150 s, and Settle returns its bid. Each auction id works once. The rivals are random numbers, not real players. Auctions need the rollup: with `VITE_ER=off` or the rollup down they are unavailable.
@@ -70,7 +69,6 @@ Nothing about the event is stored on-chain, and the player triggers the request,
 ## 9. Pyth oracle  [partly ON-CHAIN]
 - Header shows live SOL/USD and its real 1-hour change from Pyth Hermes (via the Vite dev proxy that injects the API key from `client/.env.local`, `PYTH_API_KEY`).
 - Every 5 minutes (when connected) the client posts fresh SOL/BTC price updates and calls `apply_market_signals`, which stores SOL move (bps) and BTC volatility in a `MarketSignals` account. **Nothing reads those values**; they do not affect demand. BTC is best-effort (the feed can be stale).
-- The Director "SOL pump" button just overrides the header display with +5.2% and adds a ledger line.
 
 ## 10. Map and town (all CLIENT-SIM visuals)
 28x28 grid, planned town: two 2-wide avenues crossing at a plaza with a fountain; a ring road; sidewalks; four city blocks (each 3x3 lots of 2x2 tiles with a park in the middle: garden, statue, pond, orchard). 36 lots = 20 playable plots + 6 landmarks + 6 accent shops + 4 parks. Outskirts with farms, workshops, fields and trees. Four gates at the avenue ends where customers spawn/exit.
@@ -82,21 +80,22 @@ Price tags above shops: coloured by owner type (you green, rival red, bots indig
 | Landmark | What it does today |
 |---|---|
 | Town Hall | Opens the **VRF auction** (section 8). |
-| Bank | **UI-ONLY**: take a loan (2,000/5,000/10,000 GD) or repay; loan sits in local component state, moves no GD, interest rate shown = max(3%, 8% - reputation x 0.05) per day, never charged. The program has `take_loan`/`repay_loan` but they are never called and do not move tokens. |
-| Intel Guild | **UI-ONLY**: "scout" a rival (500 GD) shows hardcoded numbers ("wholesale $1.10"); "buyout offer" just flips a sent flag. Program has `buy_scout`/`make_buyout_offer`, never called. |
-| Manager Office | Opens the Director toolbar. No real manager mechanic. |
-| Spectator Hall | Opens the P&L / Leaderboard board. `open_spectator_market`/`sponsor_street` exist in the program, unused. |
-| Uncle Ravi's shop | Opens a 3-step tutorial advice overlay. |
+| Bank | "Coming soon". The program has `take_loan`/`repay_loan`; they are never called and do not move tokens. |
+| Intel Guild | "Coming soon". Program has `buy_scout`/`make_buyout_offer`, never called. |
+| Manager Office | "Coming soon". |
+| Theatre (spectating) | "Coming soon". `open_spectator_market`/`sponsor_street` exist, unused. |
+| Uncle Ravi's shop | Opens the guide card. |
 
-## 12. HUD and other screens
-- **Day / night**: a 5:00 countdown loops forever. The "Day 1/7" counter only advances via the Director "fast-forward" button. Night is a visual dark overlay toggled from the Director toolbar; it changes nothing about sales. There is no end of season: `Round Settled` modal (pot split) can never appear because status never becomes Ended.
-- **Reputation** (0-100, starts 45 in UI vs 20 on-chain): display only, plus the fake bank rate. See section 5.
-- **City ledger**: feed of real transactions (with explorer links) when connected, plus simulation lines when not.
-- **Status board** (P&L + leaderboard): P&L uses local counters (customers served today, revenue today) with hardcoded expenses (wholesale $5, rent $4). Leaderboard ranks plots by local daily revenue.
-- **Multiplayer lobby** ("World" button): UI-ONLY; shows "2/4 players, bot backfill". No networking.
-- **Director toolbar** (demo tools): toggle night, SOL pump display, margin-call ledger message, fast-forward day (+15 reputation, +2,400 cash, +3,500 net worth in the *simulated* numbers only).
-- **Guided tour**: 5-step explainer popup.
-- **Not connected**: the whole game still runs as a pure local simulation (cash goes up from fake sales).
+## 12. Interface
+- **Top bar:** your GD (practice coins without a wallet), stock, price, live SOL/USD from Pyth, wallet, Settle (on the rollup), sound.
+- **Side buttons** (bottom bar on phones): My shop, Town, Auction, Guide.
+- **Map signs:** every claimed shop has a board with its type icon, price and stock bar (icon only when zoomed far out; hover shows the shop type). Public buildings have name boards, greyed "soon" if unbuilt. Empty lots show "For lease" on hover.
+- **Shop panel:** price stepper and slider, how many rivals you undercut, stock, restock, signage. Rivals show their price against yours.
+- **Town board:** all shops cheapest first (price, stock, sales seen this visit) and a list of places.
+- **Guide:** Uncle Ravi's 4-step card; opens on first visit, never blocks the town.
+- **Activity:** latest entry, expandable; real transactions link to the explorer.
+- **City event banner:** only while a VRF event is active.
+- **Practice mode** (no wallet): coins, restocking and sales live only in the browser tab. Signage and auctions need a wallet.
 
 ## 13. In the README / program but NOT implemented
 Private ER/TDX sealed bids (bids are public rollup transactions), cranks (day open/close, rent, interest, liquidations), Ephemeral SPL settlement, Magic Actions pot payout, season end and payout, rent/leases between players, loans and liquidation, buyouts, real managers, spectator markets, sponsorship. Program instructions for several exist (`open_day`, `close_day`, `take_loan`, `hire_manager`, `buy_scout`, ...) but the client never calls them.
@@ -105,15 +104,15 @@ Also stale: `keeper/` and `tests/` target an older round/auction design and will
 ## 14. Known issues and risks
 1. `serve_customers` self-farming (section 6): unlimited GD in your own season by setting a high price, selling to yourself and restocking.
 2. Demand is client-side and trusted; bots are static. A fair game needs demand, bots and events on-chain.
-3. Reputation and oracle signals exist but are not used by demand. Reputation value mismatch (45 vs 20).
-4. Net worth, bank, intel and P&L numbers are partly or fully fake.
+3. Oracle signals exist on-chain but are not used by demand. Reputation exists on-chain only and is not shown.
+4. Rival shops are fixed browser-only data. Unused UI files (Bank, Intel, Lobby, Results, Onboarding) are still in `components/`.
 5. The session key and wallet-less simulation mode use plaintext localStorage.
 6. SBPF v3 is not active on devnet/mainnet: always build with `yarn build` (`anchor build --arch v0`).
 
 ## 15. Where things live
 - Program: `programs/bazaar/src/` (`instructions/{season,property,business,oracle,...}`, `state/`, `gd.rs`, `utils.rs`).
 - Client chain logic: `client/src/solana/gameChain.ts` (PDAs, instruction building, session, bootstrap, polling, sales batching, auction, Pyth crank); instruction spec generated into `idlSpec.ts` by `client/scripts/gen-idl-spec.mjs`.
-- Map and engine: `client/src/engine/IsometricEngineV3.ts` (rendering, customers, click handling), `townLayout.ts` (street plan, lots, plots, props), `buildingRegistry.ts`.
-- Art: generators in `client/art-src/gen/` (`node art-src/gen/build.mjs --png`, `build-interiors.mjs --png`, `build-town.mjs`).
-- UI: `client/src/App.tsx` plus `components/` (AuctionModal, PlotInspector, BankModal, IntelModal, WalletChip, ...).
+- Map and engine: `client/src/engine/` (`IsometricEngineV3.ts` rendering, customers, clicks; `signs.ts` map boards; `shopKinds.ts` names and icons; `townLayout.ts` street plan).
+- Art: generators in `client/art-src/gen/` (`node art-src/gen/build.mjs --png`, `build-ui.mjs`, `build-interiors.mjs --png`, `build-town.mjs`).
+- UI: `client/src/App.tsx` plus `components/` (`ui.tsx` shared pieces, PlotInspector, TownBoard, Guide, AuctionModal, CityLedger, EventBanner, WalletChip). Theme tokens in `tailwind.config.js` and `index.css`.
 - Run: `cd client && npm run dev` (Phantom on Devnet). Local test validator recipe is in the project history: load the program with `--bpf-program`, clone the session program from mainnet, set `VITE_RPC_URL=http://127.0.0.1:8899`; a dev-only "Dev Wallet" appears under `vite dev`.

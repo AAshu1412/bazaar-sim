@@ -230,7 +230,7 @@ export const App: React.FC = () => {
         </div>
       </header>
 
-      <nav aria-label="Main" className="fixed left-4 top-[92px] z-30 flex flex-col gap-3 max-sm:top-[150px]">
+      <nav aria-label="Main" className="fixed left-4 top-[92px] z-30 flex flex-col gap-3 max-sm:bottom-3 max-sm:left-1/2 max-sm:top-auto max-sm:-translate-x-1/2 max-sm:flex-row">
         {dock.map((d) => (
           <button key={d.name} onClick={d.onClick} className="btn !h-[72px] !w-[72px] flex-col !gap-0.5 !px-0">
             <Badge icon={d.icon} size={38} />
@@ -246,10 +246,10 @@ export const App: React.FC = () => {
         <p role="status" className="panel pointer-events-none fixed left-1/2 top-[176px] z-[60] w-max max-w-[90vw] -translate-x-1/2 animate-pop !bg-gold px-4 py-2 font-display text-sm font-semibold">{toast}</p>
       )}
 
-      <div className="pointer-events-none fixed inset-x-4 bottom-3 z-30 flex flex-wrap items-end justify-between gap-3">
+      <div className="pointer-events-none fixed inset-x-4 bottom-3 z-30 flex flex-wrap items-end justify-between gap-3 max-sm:bottom-[96px]">
         <div className="pointer-events-auto"><CityLedger /></div>
         {guideOpen && <Guide steps={steps} onClose={closeGuide} />}
-        <div role="group" aria-label="Camera" className="pointer-events-auto ml-auto flex gap-2">
+        <div role="group" aria-label="Camera" className="pointer-events-auto ml-auto flex gap-2 max-sm:hidden">
           <button onClick={() => engineRef.current?.zoomIn()} aria-label="Zoom in" className="btn btn-icon"><ZoomIn className="h-4 w-4" aria-hidden /></button>
           <button onClick={() => engineRef.current?.zoomOut()} aria-label="Zoom out" className="btn btn-icon"><ZoomOut className="h-4 w-4" aria-hidden /></button>
           <button onClick={() => engineRef.current?.resetCamera()} aria-label="Show the whole town" title="Show the whole town" className="btn btn-icon"><Maximize className="h-4 w-4" aria-hidden /></button>
