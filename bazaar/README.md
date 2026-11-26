@@ -35,12 +35,13 @@ Program (devnet): [`GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb`](https://explo
 | Delegate shop | devnet | [47HeuYUi…](https://explorer.solana.com/tx/47HeuYUiUgpeBRraGCUJtZJhZSEeZzUyBaDndPtbuuKAsXesUFHGLxHzXvgyvKRUkM51rYHXDcYtFW1DTELKk2yu?cluster=devnet) |
 | Reprice | rollup | [5yMs26PU…](https://explorer.solana.com/tx/5yMs26PU4h9XU68NYdbpESpHEq825iQpMeoBenZ4dkYDm3pExsAoyrHaCpTCBLYcmLteBf1SCyg9R1poAYcsse8r?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
 | Customers pay | rollup | [2zm1Ybgm…](https://explorer.solana.com/tx/2zm1YbgmivjJih2Qd2GeKXKV6Lqp6Y4JgrVNqDxEWnMoivMbtq4y4EW3EQmwwTt3sfsats9FZZJ9kAyd18gz57gE?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
+| Restock | rollup | [5KXiNFmb…](https://explorer.solana.com/tx/5KXiNFmb3vasP9S7mQcT25FxQCfVZdnWj52VQokbkgpS8zc8msUi9UmibjEb8Yf3VPK2MRynJRPPe2mo25QjfbDK?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
 | Auction bid | rollup | [3VAFTMja…](https://explorer.solana.com/tx/3VAFTMjaJi2dYfjn29XJeDNarXwrPBGiPTrGSQ8Q9ncUoXdtUtUMRF7jwFgpn9VJNLmz99iiq26Lq22B2pSRmk8X?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
 | VRF answers the auction | rollup | [4DyrNWw1…](https://explorer.solana.com/tx/4DyrNWw16ihkQcvs753Bf6xAojKwiYY1m14HLm7iysYCM8TFvQYU4b9s5L5bd3pPEeMSRT2sfGvf41CXM5cLNzHC?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
 | City event request | rollup | [4ZFz87fS…](https://explorer.solana.com/tx/4ZFz87fSxaGnuv2D76eGAmJeSRWJydE1wPtob64cDZhLYiMzG3ukPaD9WBNpu6UtCx1iebjDaGkeFicp781DknoQ?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
 | VRF answers the event | rollup | [23uAgDeD…](https://explorer.solana.com/tx/23uAgDeDgoLxF38QzSg9CAhYSwf4DKpjBLePSZ8m2pbVTKnmrTPTrniZc3rR7yiK4rwsJXqzr2DZyjnzGDKf1LUV?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
-| Undelegate | rollup | [5VNw2CvK…](https://explorer.solana.com/tx/5VNw2CvKaYs1b7VMcAbWpRJ2Xanijq4bZix2wdoQ9FALGo3ttqkTwY2QgNXDmHEfXsgj2bugn8qRVE4jDtrrLNS9?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
-| Settle | devnet | [48mWCaWw…](https://explorer.solana.com/tx/48mWCaWwyYVbuYehvGA4HJcpqDWXRzHGVW7y4VVBw1gG3h1gAVqaRDCcQuu1EsQMuSCK6pPKQtomWSm8teCWPHgC?cluster=devnet) |
+| Settle: leave the rollup and schedule a Magic Action | rollup | [5DKBGBbB…](https://explorer.solana.com/tx/5DKBGBbBVY7z45XTCGUrPsLxS3xSpWYuZ1FAU72podF91Kn4Ra3u5bzzi2kgXna1R75zAFaX47y17jn5yttbjpYU?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
+| Magic Action pays out | devnet | [2U72X3td…](https://explorer.solana.com/tx/2U72X3tdMrVihwXTq2j58EdriEtJRhkGD1heZCF9MJ6QexGJvrkLnok9LNrL6fm8z7CBKbdP3fvbhA4iNxHy4JiW?cluster=devnet) |
 
 Rollup history is not kept forever, so older rollup links may stop resolving.
 
