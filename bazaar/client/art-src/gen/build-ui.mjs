@@ -29,6 +29,27 @@ png(`${ui}ravi.png`, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 1
 <path d="M50 56Q40 52 32 62Q42 66 50 61Q58 66 68 62Q60 52 50 56Z" fill="#eeeae0" stroke="${O}" stroke-width="2"/>
 <path d="M44 65q6 5 12 0" fill="none" stroke="${O}" stroke-width="2" stroke-linecap="round"/></svg>`, 192);
 
+// the rest of the cast
+const portrait = (name, { bg, skin, hair, shirt, collar, style }) => {
+  const hairDo = {
+    bun: `<circle cx="50" cy="13" r="13" fill="${hair}" stroke="${O}" stroke-width="2.5"/><path d="M26 46Q20 18 50 20Q80 18 74 46Q66 30 52 32Q36 30 26 46Z" fill="${hair}" stroke="${O}" stroke-width="2.5"/>`,
+    curls: [[30, 28, 12], [44, 19, 13], [59, 20, 12], [71, 31, 11], [26, 42, 9], [75, 45, 9]].map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${hair}" stroke="${O}" stroke-width="2.5"/>`).join(""),
+    hat: `<path d="M26 40Q24 24 36 24H64Q76 24 74 40Q62 32 50 32Q38 32 26 40Z" fill="${hair}" stroke="${O}" stroke-width="2.5"/><path d="M20 28H80" stroke="${O}" stroke-width="8" stroke-linecap="round"/><rect x="32" y="2" width="36" height="26" rx="4" fill="#2a2a3a" stroke="${O}" stroke-width="2.5"/><rect x="32" y="19" width="36" height="6" fill="#c9953f"/>`,
+  }[style];
+  const extras = style === "bun" ? `<circle cx="59" cy="46" r="9" fill="none" stroke="#c9953f" stroke-width="2.5"/><path d="M67 52q8 14 2 26" fill="none" stroke="#c9953f" stroke-width="1.6"/><circle cx="27" cy="58" r="3" fill="#ffe27a" stroke="${O}"/><circle cx="73" cy="58" r="3" fill="#ffe27a" stroke="${O}"/>`
+    : style === "hat" ? `<path d="M50 59Q40 55 30 63Q42 69 50 63Q58 69 70 63Q60 55 50 59Z" fill="${hair}" stroke="${O}" stroke-width="2"/><path d="M40 78L50 72L60 78L50 84Z" fill="#d0452f" stroke="${O}" stroke-width="2"/>`
+    : `<circle cx="36" cy="55" r="5" fill="#e8766a" opacity=".55"/><circle cx="64" cy="55" r="5" fill="#e8766a" opacity=".55"/>`;
+  const mouth = style === "curls" ? `<path d="M40 60q10 12 20 -2" fill="#fff" stroke="${O}" stroke-width="2"/>` : style === "bun" ? `<path d="M44 63q6 3 12 0" fill="none" stroke="${O}" stroke-width="2.2" stroke-linecap="round"/>` : "";
+  const brows = style === "curls" ? `<path d="M34 38l12 3M54 38l12 -5" stroke="${O}" stroke-width="2.4" stroke-linecap="round"/>` : `<path d="M35 39q6 -4 11 -1M54 38q5 -3 11 1" fill="none" stroke="${O}" stroke-width="2" stroke-linecap="round"/>`;
+  png(`${ui}${name}.png`, `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="${bg}" stroke="${O}" stroke-width="3"/>
+<path d="M16 92Q20 68 50 68Q80 68 84 92Q68 99 50 98Q32 99 16 92Z" fill="${shirt}" stroke="${O}" stroke-width="2.5"/><path d="M42 68L50 82L58 68" fill="${collar}" stroke="${O}" stroke-width="2"/>
+<ellipse cx="50" cy="48" rx="21" ry="23" fill="${skin}" stroke="${O}" stroke-width="2.5"/>${hairDo}${brows}
+<circle cx="41" cy="46" r="2.6" fill="${O}"/><circle cx="59" cy="46" r="2.6" fill="${O}"/>${extras}${mouth}</svg>`, 192);
+};
+portrait("mira", { bg: "#f2a0b5", skin: "#a8704a", hair: "#2a1c15", shirt: "#c53f74", collar: "#f6ead0", style: "curls" });
+portrait("quill", { bg: "#9bc4e0", skin: "#f0c39a", hair: "#d8d2c4", shirt: "#2f3f5f", collar: "#f6ead0", style: "hat" });
+portrait("fennick", { bg: "#b9d3a8", skin: "#eab68c", hair: "#8f8a96", shirt: "#4a3a66", collar: "#e6c25a", style: "bun" });
+
 // six townspeople
 const LOOKS = [
   ["#3f6fb5", "#3b2a1e", "#f0c39a", "bag"], ["#d0452f", "#1f1a18", "#c98a5e", "hat"], ["#3f7a55", "#a8612f", "#f5d2b0", "bun"],

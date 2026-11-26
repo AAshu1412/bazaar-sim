@@ -10,8 +10,8 @@ const usd = (cents: number) => cash(cents / 100);
 const hh = (i: number) => `${String(OPEN_HOUR + i).padStart(2, "0")}:00`;
 const pct = (n: number, of: number) => (of ? Math.round((n / of) * 100) : 0);
 
-const Section: React.FC<{ title: string; note?: React.ReactNode; children: React.ReactNode }> = ({ title, note, children }) => (
-  <section className="well p-3">
+const Section: React.FC<{ title: string; note?: React.ReactNode; tour?: string; children: React.ReactNode }> = ({ title, note, tour, children }) => (
+  <section data-tour={tour} className="well p-3">
     <h3 className="font-display text-base font-semibold leading-tight">{title}</h3>
     {note && <p className="mb-2 text-xs font-bold text-soft">{note}</p>}
     {children}
@@ -157,7 +157,7 @@ export const Reports: React.FC<{ shop: ReportShop; sellers: Seller[]; unitCostCe
           </>
         )}
         {mine && (
-          <Section title="Price advisor" note="A simulation of shoppers against today's rival prices and stock, with no city event">
+          <Section tour="advisor" title="Price advisor" note="A simulation of shoppers against today's rival prices and stock, with no city event">
             <PriceAdvisor sellers={sellers} unitCostCents={unitCostCents} onSetPrice={onSetPrice} />
           </Section>
         )}

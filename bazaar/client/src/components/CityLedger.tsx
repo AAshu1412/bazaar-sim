@@ -32,7 +32,7 @@ export const CityLedger: React.FC = () => {
   const items = useGameStore((s) => s.cityLedger);
 
   return (
-    <section aria-label="Activity" className="panel w-[400px] max-w-[calc(100vw-2rem)]">
+    <section aria-label="Activity" data-tour="activity" className="panel w-[400px] max-w-[calc(100vw-2rem)]">
       {open && (
         <ul className="max-h-60 divide-y-2 divide-ink/10 overflow-y-auto border-b-[3px] border-ink">
           {items.map((item) => <Row key={item.id} item={item} />)}

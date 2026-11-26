@@ -89,13 +89,13 @@ export const PlotInspector: React.FC<Props> = ({ plot, rivals, myPriceCents, myT
 
         {empty ? (
           <>
-            <FootTraffic tier={plot.tier} mine={myTier} />
+            <div data-tour="traffic"><FootTraffic tier={plot.tier} mine={myTier} /></div>
             <p className="text-sm font-semibold text-soft">Nobody trades here yet. Leasing more shops is not built.</p>
             <button className="btn w-full" disabled>Lease this lot <span className="soon">soon</span></button>
           </>
         ) : (
           <>
-            <section className="well p-3">
+            <section data-tour="price" className="well p-3">
               <div className="flex items-center justify-between gap-2">
                 {mine ? (
                   <button className="btn btn-icon" aria-label="Lower price by 5 cents" disabled={plot.priceCents <= MIN_PRICE} onClick={() => onReprice(Math.max(MIN_PRICE, plot.priceCents - 5))}>
@@ -136,7 +136,7 @@ export const PlotInspector: React.FC<Props> = ({ plot, rivals, myPriceCents, myT
               <Meter label="Stock" value={plot.inventory} max={mine ? stockCap : plot.maxInventory} />
             </section>
 
-            <section aria-label="Today" className="well p-2">
+            <section aria-label="Today" data-tour="today" className="well p-2">
               <dl className="grid grid-cols-3 text-center">
                 {[
                   ["Sales today", String(today.sold)],
@@ -149,17 +149,17 @@ export const PlotInspector: React.FC<Props> = ({ plot, rivals, myPriceCents, myT
                   </div>
                 ))}
               </dl>
-              <button className="btn mt-2 w-full" onClick={onStats}><Badge icon="chart" size={24} /> Open analytics</button>
+              <button data-tour="analytics" className="btn mt-2 w-full" onClick={onStats}><Badge icon="chart" size={24} /> Open analytics</button>
             </section>
 
             {mine && (
               <div className="space-y-2 pt-1">
-                <p className="flex justify-between text-sm font-extrabold"><span>Rent, every game day</span><span className="tabular-nums">{money(SHOP_RENT)}</span></p>
-                <button className="btn btn-leaf w-full justify-between" disabled={!!busy || !!restockWhy} onClick={() => run("restock", onRestock)}>
+                <p data-tour="rent" className="flex justify-between text-sm font-extrabold"><span>Rent, every game day</span><span className="tabular-nums">{money(SHOP_RENT)}</span></p>
+                <button data-tour="restock" className="btn btn-leaf w-full justify-between" disabled={!!busy || !!restockWhy} onClick={() => run("restock", onRestock)}>
                   <span className="flex items-center gap-2">{busy === "restock" && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}{busy === "restock" ? "Restocking…" : `Restock +${RESTOCK_UNITS}`}</span>
                   <span className="tabular-nums">{restockWhy ?? money(restockCostGd)}</span>
                 </button>
-                <button className="btn btn-gold w-full justify-between" disabled={!!busy || signage || !live || gd < 1000} onClick={() => run("upgrade", onUpgrade)}>
+                <button data-tour="signage" className="btn btn-gold w-full justify-between" disabled={!!busy || signage || !live || gd < 1000} onClick={() => run("upgrade", onUpgrade)}>
                   <span className="flex items-center gap-2">{busy === "upgrade" && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}{signage ? "Signage installed" : "Put up signage"}</span>
                   {!signage && <span>{!live ? "Needs wallet" : money(1000)}</span>}
                 </button>

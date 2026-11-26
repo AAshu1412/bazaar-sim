@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import React, { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { Volume2, VolumeX, ZoomIn, ZoomOut, Maximize } from "lucide-react";
 import { IsometricEngineV3 } from "./engine/IsometricEngineV3";
@@ -12,7 +12,11 @@ import { AuctionModal } from "./components/AuctionModal";
 import { CityLedger } from "./components/CityLedger";
 import { PlotInspector, RESTOCK_UNITS } from "./components/PlotInspector";
 import { TownBoard } from "./components/TownBoard";
-import { Guide } from "./components/Guide";
+import { Gate } from "./components/Gate";
+import { Intro } from "./components/Intro";
+import { StoryGuide, Journal } from "./components/Story";
+import { useStory } from "./story/useStory";
+import { MY_PLOT, MIRA_PLOT, EMPTY_PLOT, BEATS, type Action, type World } from "./story/script";
 import { Badge } from "./components/ui";
 import { WalletChip } from "./components/WalletChip";
 import { useGameStore } from "./store/gameStore";
@@ -20,7 +24,9 @@ import { sfx } from "./audio/sfx";
 import { gameChain, type TxLog } from "./solana/gameChain";
 import { fetchSolPrice } from "./solana/pyth";
 
-const GUIDE_SEEN = "bazaar_seen_guide_v3";
+/** the wallet-free sandbox exists only for development: `npm run dev` with ?practice */
+const PRACTICE = import.meta.env.DEV && new URLSearchParams(location.search).has("practice");
+const INTRO_SEEN = "bazaar_intro_seen";
 const PRACTICE_UNIT_COST = 1.37; // GD per unit, matches the on-chain wholesale price
 
 export const App: React.FC = () => {
@@ -37,7 +43,11 @@ export const App: React.FC = () => {
   const [boardOpen, setBoardOpen] = useState(false);
   const [reportsFor, setReportsFor] = useState<number | null>(null); // plot whose analytics are open
   const [clock, setClock] = useState(() => clockAt(0));
-  const [guideOpen, setGuideOpen] = useState(() => !localStorage.getItem(GUIDE_SEEN));
+  const [journalOpen, setJournalOpen] = useState(false);
+  const [intro, setIntro] = useState(() => !PRACTICE && !localStorage.getItem(INTRO_SEEN));
+  const [entered, setEntered] = useState(PRACTICE); // through the front door
+  const enteredRef = useRef(entered);
+  enteredRef.current = entered;
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>();
   const [, setTick] = useState(0); // the map owns shop data; re-read it twice a second
@@ -57,13 +67,13 @@ export const App: React.FC = () => {
   };
   const openPlace = (id: PlaceId) => {
     const place = PLACES.find((p) => p.id === id)!;
-    if (place.soon) return say(`${place.name}: coming soon`);
+    if (id === "bank") useStory.getState().mark("bank");
+    if (place.soon) return say(id === "bank" ? "The vault is not open yet. Loans and new capital are coming soon." : `${place.name}: coming soon`);
     setBoardOpen(false);
     closeInspector();
     if (id === "auction") useGameStore.setState({ auctionActive: true });
-    else setGuideOpen(true);
+    else setJournalOpen(true);
   };
-  const closeGuide = useCallback(() => { localStorage.setItem(GUIDE_SEEN, "1"); setGuideOpen(false); }, []);
   // engine callbacks are registered once, so they go through a ref to see fresh state
   const handlers = useRef({ openShop, openPlace, closeInspector, say });
   handlers.current = { openShop, openPlace, closeInspector, say };
@@ -94,13 +104,13 @@ export const App: React.FC = () => {
   useEffect(() => {
     let owed = 0, seconds = 0, day = 1;
     const spawner = setInterval(() => {
-      if (document.hidden) return;
+      if (document.hidden || !enteredRef.current) return; // the town opens when you walk in
       for (owed += demandModifiers(useGameStore.getState().activeEvent).customersPerTick; owed >= 1; owed--) engineRef.current?.spawnCustomer();
     }, 750);
     const ticker = setInterval(() => {
       setTick((t) => t + 1);
       const engine = engineRef.current;
-      if (document.hidden || !engine?.plots.length) return;
+      if (document.hidden || !enteredRef.current || !engine?.plots.length) return;
       const now = clockAt((seconds += 0.5));
       engine.hour = now.hour;
       engine.setDaylight(now.hour < 7 ? 0.28 : now.hour < 8 ? 0.14 : now.hour < 17 ? 0 : Math.min(0.52, (now.hour - 16) * 0.12));
@@ -145,6 +155,28 @@ export const App: React.FC = () => {
   }, [connected, walletKey]);
   const chain = useSyncExternalStore(gameChain.subscribe, gameChain.getState);
   const live = chain.phase === "live";
+
+  // the front door closes again if the wallet goes away
+  useEffect(() => {
+    if (!PRACTICE && (!connected || chain.phase === "disconnected")) { setEntered(false); setSelected(null); setBoardOpen(false); setReportsFor(null); setJournalOpen(false); useGameStore.setState({ auctionActive: false }); }
+  }, [connected, chain.phase]);
+  useEffect(() => { if (PRACTICE) useStory.getState().load("practice"); }, []);
+  const enter = () => {
+    useStory.getState().load(walletKey ?? "practice");
+    setEntered(true);
+    sfx.playWin();
+  };
+  // the story hears about things through the activity feed
+  const feed = useGameStore((g) => g.cityLedger);
+  const heard = useRef(new Set<string>());
+  useEffect(() => {
+    for (const item of [...feed].reverse()) {
+      if (heard.current.has(item.id)) continue;
+      heard.current.add(item.id);
+      const what = /^Auction (won|lost)/.test(item.message) ? "auction" : /^Rent paid/.test(item.message) ? "rent" : /settled your (rollup )?cash/i.test(item.message) ? "settle" : null;
+      if (what) useStory.getState().mark(what);
+    }
+  }, [feed]);
 
   // mirror on-chain stock and price into the map (sold out on-chain = sold out in town)
   useEffect(() => {
@@ -229,21 +261,48 @@ export const App: React.FC = () => {
     { icon: "pin", name: "Town", onClick: () => { closeInspector(); setBoardOpen(true); } },
     { icon: "chart", name: "Reports", onClick: () => { closeInspector(); setReportsFor(0); } },
     { icon: "gavel", name: "Auction", onClick: () => openPlace("auction") },
-    { icon: "help", name: "Guide", onClick: () => setGuideOpen(true) },
+    { icon: "help", name: "Story", onClick: () => { closeInspector(); setJournalOpen(true); } },
   ];
-  const steps = [
-    { title: "This is your coffee shop", body: "You own the corner plot marked YOUR SHOP. Each shopper wants one thing, shown over their head. Coffee drinkers pick between you and the other coffee houses.", action: { label: "Show me", run: () => openShop(0) } },
-    { title: "Price it to win", body: "Too dear and shoppers leave; too cheap and you earn little. Reports shows where they went and suggests a price.", action: { label: "Open price", run: () => openShop(0) } },
-    { title: "Play for real on devnet", body: "Select Wallet (top right), then Start session. That is the only approval: every move after it is signed for you." },
-    { title: "Never run dry", body: `Restock from your shop or bid at the Town Hall auction. Your shop pays ${money(SHOP_RENT)} rent every day, so keep selling.`, action: { label: "Town board", run: () => setBoardOpen(true) } },
-  ];
+  const story = useStory();
+  const activeEvent = useGameStore((g) => g.activeEvent);
+  const auctionOpen = useGameStore((g) => g.auctionActive);
+  const books = useStats((st) => st.days).map((d) => shopOn(d, MY_PLOT));
+  const total = (f: (d: (typeof books)[number]) => number) => books.reduce((n, d) => n + f(d), 0);
+  const world: World = {
+    live, rollup: live && chain.erMode, selected, selectedEmpty: plot?.ownerType === "unclaimed", boardOpen, reportsFor, auctionOpen,
+    eventActive: activeEvent !== "Quiet", myPrice: mine?.priceCents ?? 0, sold: total((d) => d.sold), stockSpend: total((d) => d.stockSpend), marks: story.marks,
+  };
+  const closeAll = () => { closeInspector(); setBoardOpen(false); setReportsFor(null); setJournalOpen(false); useGameStore.setState({ auctionActive: false }); };
+  const act = (a: Action) => {
+    if (a === "dismiss") { setBoardOpen(false); setReportsFor(null); useGameStore.setState({ auctionActive: false }); return; }
+    closeAll();
+    if (a === "shop") openShop(MY_PLOT);
+    else if (a === "mira") openShop(MIRA_PLOT);
+    else if (a === "lot") openShop(EMPTY_PLOT);
+    else if (a === "board") setBoardOpen(true);
+    else if (a === "reports") setReportsFor(MY_PLOT);
+    else if (a === "auction") useGameStore.setState({ auctionActive: true });
+    else if (a === "bank") { engineRef.current?.focusPlace("bank"); openPlace("bank"); }
+  };
+  const look = (where: number | string | null) => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setMarker(typeof where === "number" || (where && where !== "town") ? (where as number | PlaceId) : null);
+    if (where === "town") engine.resetCamera();
+    else if (typeof where === "number") engine.focusPlot(where);
+    else if (where) engine.focusPlace(where as PlaceId);
+  };
+  const modalOpen = boardOpen || reportsFor !== null || auctionOpen || journalOpen;
+  const narrow = typeof window !== "undefined" && window.innerWidth < 640;
+  const telling = entered && story.playing;
 
   return (
     <div className="relative h-screen w-screen select-none overflow-hidden font-sans">
       <div ref={containerRef} className="fixed inset-0 z-0 cursor-grab active:cursor-grabbing" />
 
+      {entered && <>
       <header className="pointer-events-none fixed inset-x-4 top-3 z-30 flex flex-wrap items-start justify-between gap-3">
-        <div className="panel pointer-events-auto flex items-center gap-2 !bg-wood py-1.5 pl-2 pr-4 !text-paper">
+        <div data-tour="clock" className="panel pointer-events-auto flex items-center gap-2 !bg-wood py-1.5 pl-2 pr-4 !text-paper">
           <img src="/logo/icon.svg" alt="" width={44} height={44} draggable={false} className="shrink-0" />
           <div>
             <h1 className="font-display text-xl font-bold leading-none tracking-wide">Bazaar</h1>
@@ -252,7 +311,7 @@ export const App: React.FC = () => {
           </div>
         </div>
 
-        <dl className="panel pointer-events-auto flex divide-x-2 divide-ink/15 px-1 py-1.5">
+        <dl data-tour="stats" className="panel pointer-events-auto flex divide-x-2 divide-ink/15 px-1 py-1.5">
           {stats.map((st) => (
             <div key={st.name} className="flex items-center gap-2 px-3">
               <Badge icon={st.icon} size={32} className="hidden sm:block" />
@@ -278,7 +337,7 @@ export const App: React.FC = () => {
 
       <nav aria-label="Main" className="fixed left-4 top-[104px] z-30 flex flex-col gap-3 max-sm:bottom-3 max-sm:left-1/2 max-sm:top-auto max-sm:-translate-x-1/2 max-sm:flex-row max-sm:gap-2">
         {dock.map((d) => (
-          <button key={d.name} onClick={d.onClick} className="btn !h-[68px] !w-[72px] flex-col !gap-0.5 !px-0 max-sm:!w-[62px]">
+          <button key={d.name} data-tour={`dock-${d.name.toLowerCase().replace(" ", "")}`} onClick={d.onClick} className="btn !h-[68px] !w-[72px] flex-col !gap-0.5 !px-0 max-sm:!w-[62px]">
             <Badge icon={d.icon} size={38} />
             <span className="text-xs">{d.name}</span>
           </button>
@@ -293,14 +352,16 @@ export const App: React.FC = () => {
       )}
 
       <div className="pointer-events-none fixed inset-x-4 bottom-3 z-30 flex flex-wrap items-end justify-between gap-3 max-sm:bottom-[96px]">
-        <div className="pointer-events-auto"><CityLedger /></div>
-        {guideOpen && <Guide steps={steps} onClose={closeGuide} />}
+        {/* the story card sits here; the activity feed steps aside unless the story is pointing at it */}
+        <div className={`pointer-events-auto ${telling && BEATS[story.at].spot !== "activity" ? "invisible" : ""}`}><CityLedger /></div>
         <div role="group" aria-label="Camera" className="pointer-events-auto ml-auto flex gap-2 max-sm:hidden">
           <button onClick={() => engineRef.current?.zoomIn()} aria-label="Zoom in" className="btn btn-icon"><ZoomIn className="h-4 w-4" aria-hidden /></button>
           <button onClick={() => engineRef.current?.zoomOut()} aria-label="Zoom out" className="btn btn-icon"><ZoomOut className="h-4 w-4" aria-hidden /></button>
           <button onClick={() => engineRef.current?.resetCamera()} aria-label="Show the whole town" title="Show the whole town" className="btn btn-icon"><Maximize className="h-4 w-4" aria-hidden /></button>
         </div>
       </div>
+
+      </>}
 
       {plot && (
         <PlotInspector
@@ -342,6 +403,16 @@ export const App: React.FC = () => {
         />
       )}
       <AuctionModal />
+      {entered && <StoryGuide world={world} busy={modalOpen || (narrow && plot !== null)} onAction={act} onLook={look} />}
+      {journalOpen && (
+        <Journal
+          onClose={() => setJournalOpen(false)}
+          onIntro={() => { setJournalOpen(false); setIntro(true); }}
+          stats={[["Cups sold", String(world.sold)], ["Revenue", money(total((d) => d.revenue) / 100)], ["Rent paid", money(total((d) => d.rent) / 100)], ["Auctions", String(story.marks.auction)]]}
+        />
+      )}
+      {!entered && !intro && <Gate onEnter={enter} onIntro={() => setIntro(true)} />}
+      {intro && <Intro onDone={() => { localStorage.setItem(INTRO_SEEN, "1"); setIntro(false); }} />}
     </div>
   );
 };

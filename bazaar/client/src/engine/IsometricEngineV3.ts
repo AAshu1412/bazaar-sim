@@ -104,6 +104,8 @@ export class IsometricEngineV3 {
   /** buildings are clicked through the viewport (Pixi hit-testing only caught a sliver of each sprite) */
   private targets: Target[] = [];
   private hovered: Target | null = null;
+  private marked: string | null = null;
+  private marker: PIXI.Graphics | null = null;
   private selected: string | null = null;
   /** lot silhouette in lot-local coordinates: the 2x2 footprint plus the building above it */
   private static readonly HIT = new PIXI.Polygon([-82, 50, -80, -4, 0, -60, 80, -4, 82, 50, 0, 95]);
@@ -328,6 +330,26 @@ export class IsometricEngineV3 {
     const t: Target = { key, container, sprite, ring, sign, onClick };
     this.targets.push(t);
     return t;
+  }
+
+  /** a bouncing arrow over a plot or place (the story points with it); null removes it */
+  public setMarker(key: number | PlaceId | null) {
+    this.marked = key === null ? null : typeof key === "number" ? `plot-${key}` : key;
+  }
+  private syncMarker() {
+    const t = this.targets.find((x) => x.key === this.marked);
+    if (!t) { if (this.marker) this.marker.visible = false; return; }
+    if (!this.marker) {
+      this.marker = new PIXI.Graphics()
+        .poly([-13, -34, 13, -34, 13, -16, 24, -16, 0, 10, -24, -16, -13, -16])
+        .fill({ color: 0xffc94a }).stroke({ width: 4, color: 0x2a1c15, join: "round" });
+      this.uiLayer.addChild(this.marker);
+    }
+    const zoom = this.viewport?.scale.x ?? 1, k = Math.max(0.8, Math.min(1.8, 1 / zoom));
+    const top = t.sign.root.visible ? t.sign.root.y - 34 * t.sign.root.scale.y : t.container.y - 62;
+    this.marker.visible = true;
+    this.marker.scale.set(k);
+    this.marker.position.set(t.container.x, top - 8 - Math.abs(Math.sin(performance.now() / 240)) * 16 * k);
   }
 
   /** signs keep a readable size at any zoom, collapse to badges far out, and react to hover and selection */
@@ -844,6 +866,7 @@ export class IsometricEngineV3 {
 
     this.entitiesLayer.sortChildren();
     this.syncTargets();
+    this.syncMarker();
     this.night?.step(delta);
     this.mistTimer += delta * 0.008;
     this.mist.forEach((m, i) => (m.pivot.x = Math.sin(this.mistTimer + i) * 14));

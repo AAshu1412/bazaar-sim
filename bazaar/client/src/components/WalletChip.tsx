@@ -18,6 +18,7 @@ export const WalletChip: React.FC = () => {
       )}
       {connected && s.phase === "live" && s.erMode && (
         <button
+          data-tour="settle"
           onClick={() => gameChain.settle()}
           disabled={s.settling}
           title={`Bring the shop back to devnet and pay your cash into your GD token account, then rejoin the rollup. This session's net: ${s.unsettledGd >= 0 ? "+" : ""}${money(s.unsettledGd)}`}

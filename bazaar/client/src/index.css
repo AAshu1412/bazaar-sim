@@ -7,6 +7,8 @@
   :focus-visible { outline: 3px solid #4f9be8; outline-offset: 2px; }
 }
 
+@keyframes fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
 @layer components {
   .panel { @apply rounded-2xl border-[3px] border-ink bg-paper text-ink shadow-board; }
   .panel-head { @apply flex items-center gap-3 rounded-t-[13px] border-b-[3px] border-ink bg-wood px-4 py-2.5 text-paper; }
@@ -35,6 +37,6 @@
 .wallet-adapter-dropdown-list { background: #6b3f26 !important; border: 2px solid #2a1c15; }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  *:not([style*="fill "]), *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
   .drain-bar { display: none; }
 }

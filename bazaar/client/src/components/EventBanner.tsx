@@ -18,7 +18,7 @@ export const EventBanner: React.FC = () => {
   const e = EVENTS[activeEvent];
 
   return (
-    <div key={activeEvent} role="status" className="panel mx-auto w-fit min-w-[320px] animate-pop overflow-hidden !bg-gold">
+    <div key={activeEvent} data-tour="event" role="status" className="panel mx-auto w-fit min-w-[320px] animate-pop overflow-hidden !bg-gold">
       <div className="flex items-center gap-3 px-3 py-2">
         <Badge icon={e.icon} size={40} />
         <div className="flex-1">

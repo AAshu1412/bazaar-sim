@@ -13,7 +13,8 @@ Program (devnet): [`GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb`](https://explo
 - Your shop pays $20 rent every game day, collected automatically.
 - Rivals restock overnight and raise or cut prices depending on how their day went.
 - Every shop has analytics: sales, market share, shoppers by hour, why they went elsewhere. Yours adds profit and a price advisor.
-- Without a wallet the game runs in practice mode, entirely in the browser.
+- You start at the front door: connect a wallet, approve one session, and your shop is set up on-chain before you walk in.
+- A two-minute animated intro and a 12-chapter story with Uncle Ravi, Mira, Mr. Quill and Madame Fennick teach every part of the game by doing it.
 
 ## 🏗️ MagicBlock Primitives
 
@@ -70,7 +71,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173, choose **Select Wallet**, then **Start session**.
+Open http://localhost:5173, watch (or skip) the intro, connect your wallet and start your session.
 
 Optional settings in `client/.env.local`:
 
@@ -109,6 +110,7 @@ To test the rollup locally: run `mb-test-validator` (from `@magicblock-labs/ephe
 | `programs/bazaar/src/` | Program: instructions and state |
 | `client/src/solana/` | Wallet session, transactions, rollup routing |
 | `client/src/engine/` | PixiJS town, map signs, demand model |
-| `client/src/components/` | Panels: shop, analytics, town board, auction, guide |
+| `client/src/components/` | Intro, front door, story, shop, analytics, town board, auction |
+| `client/src/story/` | Story script and progress |
 | `client/art-src/` | Art and logo generators |
 | `keeper/`, `tests/` | Left over from an earlier design; they do not work with this program |

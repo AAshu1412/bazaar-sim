@@ -22,7 +22,7 @@ export class DevWalletAdapter extends BaseMessageSignerWalletAdapter {
   get readyState() { return WalletReadyState.Installed; }
 
   async connect() {
-    if (this._kp) return;
+    if (this._kp) { this.emit("connect", this._kp.publicKey); return; }
     this._connecting = true;
     const saved = localStorage.getItem(KEY);
     this._kp = saved ? Keypair.fromSecretKey(Uint8Array.from(JSON.parse(saved))) : Keypair.generate();

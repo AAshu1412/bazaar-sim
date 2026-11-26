@@ -27,3 +27,17 @@ assert.equal(nextRivalPrice(300, 40, 45, "CoffeeCart"), 310);
 assert.equal(nextRivalPrice(300, 0, 45, "CoffeeCart"), 290);
 assert.equal(nextRivalPrice(255, 0, 45, "CoffeeCart"), 255);
 console.log("economy ok:", curve.map((c) => `$${c.priceCents / 100} ${Math.round(c.share * 100)}%`).join(" | "), "-> best $" + best.priceCents / 100);
+
+// story: every beat is reachable and every task can be completed or skipped
+import { BEATS, CHAPTERS, CAST, chapterStart, taskOf } from "../src/story/script.ts";
+const world = { live: true, rollup: true, selected: null, selectedEmpty: false, boardOpen: false, reportsFor: null, auctionOpen: false, eventActive: false, myPrice: 275, sold: 0, stockSpend: 0, marks: { auction: 0, rent: 0, settle: 0, bank: 0 } };
+const done = { ...world, selected: null, boardOpen: true, reportsFor: 0, auctionOpen: true, eventActive: true, selectedEmpty: true, myPrice: 300, sold: 1, stockSpend: 1, marks: { auction: 1, rent: 1, settle: 1, bank: 1 } };
+for (const [i, c] of CHAPTERS.entries()) assert.equal(BEATS[chapterStart(i)].chapter, i, c.title);
+for (const b of BEATS) {
+  assert.ok(CAST[b.who] && b.say.length > 20);
+  if (!b.task) continue;
+  assert.equal(b.task.done(world, world), false, `already complete at the start: ${b.task.text}`);
+  assert.ok([done, { ...done, selected: 0 }, { ...done, selected: 10 }].some((w) => b.task.done(w, world)), `cannot be completed: ${b.task.text}`);
+  if (b.rollup) assert.equal(taskOf(b, { ...world, rollup: false }), undefined);
+}
+console.log(`story ok: ${CHAPTERS.length} chapters, ${BEATS.length} beats, ${BEATS.filter((b) => b.task).length} tasks`);
