@@ -72,7 +72,7 @@ Nothing about the event is stored on-chain, and the player triggers the request,
 
 ## 10. Map and town (all CLIENT-SIM visuals)
 28x28 grid, planned town: two 2-wide avenues crossing at a plaza with a fountain; a ring road; sidewalks; four city blocks (each 3x3 lots of 2x2 tiles with a park in the middle: garden, statue, pond, orchard). 36 lots = 20 playable plots + 6 landmarks + 6 accent shops + 4 parks. Outskirts with farms, workshops, fields and trees. Four gates at the avenue ends where customers spawn/exit.
-Plot tiers: 4 Corner (around the plaza; yours is the north-west one), then the 16 other plots ranked by distance to the plaza: 6 MainStreet, 6 SideStreet, 4 Alley. Tier only affects the customer-score bonus. Only plot #0 exists on-chain. Plot types cycle CoffeeCart/StreetFood/Electronics/FlowerStall/Bookshop (id mod 5); unclaimed plots show a fenced "for lease" lot.
+Plot tiers: 4 Corner (around the plaza; yours is the north-west one), then the 16 other plots ranked by distance to the plaza: 6 MainStreet, 6 SideStreet, 4 Alley. Tier only affects the customer-score bonus. Only plot #0 exists on-chain. Plot types cycle CoffeeCart/StreetFood/Electronics/FlowerStall/Bookshop (id mod 5), except plot 7 which is a coffee house; there are three rival coffee houses (Bean There, Daily Grind, Mocha Corner). Shoppers pick across all shop types. Unclaimed plots show a fenced "for lease" lot.
 Rival shops (19 plots): one rival "human" and several bots with fixed prices ($2.75-$4.20), starting stock 25-60 that never refills (they show SOLD OUT forever once empty). Bots never reprice, restock or pay anything; their numbers are local. Names like "Undercutter Bot" are labels only.
 Price tags above shops: coloured by owner type (you green, rival red, bots indigo), with price and a stock bar.
 
@@ -87,6 +87,7 @@ Price tags above shops: coloured by owner type (you green, rival red, bots indig
 | Uncle Ravi's shop | Opens the guide card. |
 
 ## 12. Interface
+- **Sound:** synthesised in `audio/sfx.ts` (coin on your sales, tap on buttons, chime for city events, gavel / fanfare for auctions). Silent until your first click.
 - **Top bar:** your GD (practice coins without a wallet), stock, price, live SOL/USD from Pyth, wallet, Settle (on the rollup), sound.
 - **Side buttons** (bottom bar on phones): My shop, Town, Auction, Guide.
 - **Map signs:** every claimed shop has a board with its type icon, price and stock bar (icon only when zoomed far out; hover shows the shop type). Public buildings have name boards, greyed "soon" if unbuilt. Empty lots show "For lease" on hover.

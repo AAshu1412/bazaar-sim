@@ -1,173 +1,100 @@
-/**
- * Web Audio API synthesizer for zero-dependency retro micro-SFX
- */
+/** Soft game sounds synthesised with Web Audio (no audio files). Each is a function so it can be rendered offline. */
+type Sound = (ctx: BaseAudioContext, out: AudioNode, t: number) => void;
+
+/** One plucked tone: instant soft attack, natural decay, optional pitch slide. */
+function tone(ctx: BaseAudioContext, out: AudioNode, t: number, freq: number, dur: number, gain: number, to = freq) {
+  const osc = ctx.createOscillator(), g = ctx.createGain();
+  osc.frequency.setValueAtTime(freq, t);
+  osc.frequency.exponentialRampToValueAtTime(to, t + dur);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(gain, t + 0.006);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  osc.connect(g).connect(out);
+  osc.start(t);
+  osc.stop(t + dur + 0.02);
+}
+/** A mallet on wood: the note plus a short bright overtone. */
+const marimba = (ctx: BaseAudioContext, out: AudioNode, t: number, freq: number, gain = 0.28) => {
+  tone(ctx, out, t, freq, 0.34, gain);
+  tone(ctx, out, t, freq * 4, 0.07, gain * 0.22);
+};
+/** A short burst of muffled noise, for anything that hits wood. */
+function thud(ctx: BaseAudioContext, out: AudioNode, t: number, cutoff: number, dur: number, gain: number) {
+  const buffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * dur), ctx.sampleRate), data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / data.length) ** 3;
+  const src = ctx.createBufferSource(), filter = ctx.createBiquadFilter(), g = ctx.createGain();
+  src.buffer = buffer;
+  filter.type = "lowpass";
+  filter.frequency.value = cutoff;
+  g.gain.value = gain;
+  src.connect(filter).connect(g).connect(out);
+  src.start(t);
+}
+
+export const SOUNDS = {
+  /** a sale: two quick coin notes */
+  coin: (ctx, out, t) => {
+    tone(ctx, out, t, 987.8, 0.09, 0.16);
+    tone(ctx, out, t + 0.065, 1318.5, 0.3, 0.18);
+    tone(ctx, out, t + 0.065, 2637, 0.12, 0.035);
+  },
+  /** buttons: a dry wooden tap */
+  tap: (ctx, out, t) => {
+    tone(ctx, out, t, 430, 0.055, 0.16, 250);
+    thud(ctx, out, t, 1800, 0.025, 0.12);
+  },
+  /** two raps of the auctioneer's gavel */
+  gavel: (ctx, out, t) => {
+    [0, 0.17].forEach((d, i) => {
+      thud(ctx, out, t + d, 900, 0.09, i ? 0.55 : 0.7);
+      tone(ctx, out, t + d, 190, 0.14, i ? 0.28 : 0.36, 85);
+    });
+  },
+  /** a city event: rising chime */
+  event: (ctx, out, t) => [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => marimba(ctx, out, t + i * 0.09, f)),
+  /** auction won: a short fanfare */
+  win: (ctx, out, t) => {
+    [783.99, 987.77, 1174.66].forEach((f, i) => marimba(ctx, out, t + i * 0.1, f));
+    [783.99, 987.77, 1567.98].forEach((f) => marimba(ctx, out, t + 0.34, f, 0.18));
+  },
+} satisfies Record<string, Sound>;
+
 class SoundEffects {
   private ctx: AudioContext | null = null;
-  public enabled: boolean = true;
+  private out: GainNode | null = null;
+  private last: Partial<Record<keyof typeof SOUNDS, number>> = {};
+  public enabled = true;
 
-  private init() {
-    if (!this.ctx && typeof window !== "undefined") {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      this.ctx = new AudioCtx();
-    }
-    if (this.ctx && this.ctx.state === "suspended") {
-      this.ctx.resume();
-    }
+  constructor() {
+    if (typeof window === "undefined") return;
+    // Browsers only allow audio after a gesture. Notes queued before that would all fire at once, so none are.
+    const unlock = () => {
+      if (!this.ctx) {
+        this.ctx = new AudioContext();
+        this.out = this.ctx.createGain();
+        this.out.gain.value = 0.55;
+        this.out.connect(this.ctx.destination);
+      }
+      if (this.ctx.state === "suspended") this.ctx.resume().catch(() => {});
+    };
+    window.addEventListener("pointerdown", unlock, true);
+    window.addEventListener("keydown", unlock, true);
   }
 
-  /**
-   * Cash register "ching" when a customer buys coffee
-   */
-  public playChing() {
-    if (!this.enabled) return;
-    try {
-      this.init();
-      if (!this.ctx) return;
-      const now = this.ctx.currentTime;
-
-      // Bell chime (high harmonic tones)
-      const osc1 = this.ctx.createOscillator();
-      const osc2 = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-
-      osc1.type = "sine";
-      osc1.frequency.setValueAtTime(1400, now);
-      osc1.frequency.exponentialRampToValueAtTime(1800, now + 0.08);
-
-      osc2.type = "triangle";
-      osc2.frequency.setValueAtTime(2400, now);
-      osc2.frequency.exponentialRampToValueAtTime(3200, now + 0.12);
-
-      gain.gain.setValueAtTime(0.2, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-
-      osc1.connect(gain);
-      osc2.connect(gain);
-      gain.connect(this.ctx.destination);
-
-      osc1.start(now);
-      osc2.start(now);
-      osc1.stop(now + 0.35);
-      osc2.stop(now + 0.35);
-    } catch (_) {}
+  /** `gapMs` stops busy moments (a queue of shoppers, a dragged slider) from piling up. */
+  private play(name: keyof typeof SOUNDS, gapMs = 0) {
+    if (!this.enabled || !this.ctx || !this.out || this.ctx.state !== "running" || document.hidden) return;
+    const now = performance.now();
+    if (now - (this.last[name] ?? -Infinity) < gapMs) return;
+    this.last[name] = now;
+    SOUNDS[name](this.ctx, this.out, this.ctx.currentTime + 0.01);
   }
 
-  /**
-   * Subtle click when repricing slider adjusts
-   */
-  public playPriceClick() {
-    if (!this.enabled) return;
-    try {
-      this.init();
-      if (!this.ctx) return;
-      const now = this.ctx.currentTime;
-
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(650, now);
-      osc.frequency.exponentialRampToValueAtTime(350, now + 0.03);
-
-      gain.gain.setValueAtTime(0.08, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
-
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-
-      osc.start(now);
-      osc.stop(now + 0.04);
-    } catch (_) {}
-  }
-
-  /**
-   * Glitch scramble sound during sealed bids
-   */
-  public playGlitch() {
-    if (!this.enabled) return;
-    try {
-      this.init();
-      if (!this.ctx) return;
-      const now = this.ctx.currentTime;
-
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-
-      osc.type = "sawtooth";
-      osc.frequency.setValueAtTime(180, now);
-      osc.frequency.setValueAtTime(820, now + 0.02);
-      osc.frequency.setValueAtTime(240, now + 0.04);
-      osc.frequency.setValueAtTime(940, now + 0.06);
-
-      gain.gain.setValueAtTime(0.05, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-
-      osc.start(now);
-      osc.stop(now + 0.08);
-    } catch (_) {}
-  }
-
-  /**
-   * Gavel hit on auction reveal
-   */
-  public playGavel() {
-    if (!this.enabled) return;
-    try {
-      this.init();
-      if (!this.ctx) return;
-      const now = this.ctx.currentTime;
-
-      // Deep thud
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(120, now);
-      osc.frequency.exponentialRampToValueAtTime(30, now + 0.25);
-
-      gain.gain.setValueAtTime(0.4, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-
-      osc.start(now);
-      osc.stop(now + 0.3);
-    } catch (_) {}
-  }
-
-  /**
-   * VRF event fanfare / alert chime
-   */
-  public playVrfAlert() {
-    if (!this.enabled) return;
-    try {
-      this.init();
-      if (!this.ctx) return;
-      const now = this.ctx.currentTime;
-
-      [523.25, 659.25, 783.99, 1046.5].forEach((freq, i) => {
-        if (!this.ctx) return;
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-
-        osc.type = "triangle";
-        osc.frequency.setValueAtTime(freq, now + i * 0.06);
-
-        gain.gain.setValueAtTime(0.15, now + i * 0.06);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.06 + 0.2);
-
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
-
-        osc.start(now + i * 0.06);
-        osc.stop(now + i * 0.06 + 0.2);
-      });
-    } catch (_) {}
-  }
+  playChing() { this.play("coin", 450); }
+  playPriceClick() { this.play("tap", 70); }
+  playGavel() { this.play("gavel", 300); }
+  playVrfAlert() { this.play("event", 1000); }
+  playWin() { this.play("win", 1000); }
 }
 
 export const sfx = new SoundEffects();

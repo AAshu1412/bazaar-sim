@@ -52,7 +52,7 @@ export const AuctionModal: React.FC = () => {
       }
       await new Promise((r) => setTimeout(r, 400));
       setPhase("RESULT");
-      result.won ? sfx.playChing() : sfx.playGavel();
+      result.won ? sfx.playWin() : sfx.playGavel();
     } catch (err) {
       setError(String((err as { message?: string })?.message ?? err).slice(0, 140));
       setPhase("BIDDING");

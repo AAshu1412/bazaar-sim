@@ -450,18 +450,18 @@ export class IsometricEngineV3 {
     this.plots = [];
 
     // owner / economy data in slot order: 4 corners, 6 main street, 6 side street, 4 alley (positions come from townLayout)
-    const owners: { ownerType: PlotOwnerType; ownerName: string | null; priceCents: number; inventory: number }[] = [
+    const owners: { ownerType: PlotOwnerType; ownerName: string | null; priceCents: number; inventory: number; type?: string }[] = [
       { ownerType: "player", ownerName: "You (Corner Roast)", priceCents: 300, inventory: 50 },
       { ownerType: "rivalHuman", ownerName: "Player 2 (Gourmet)", priceCents: 310, inventory: 45 },
       { ownerType: "bot", ownerName: "Undercutter Bot", priceCents: 290, inventory: 50 },
       { ownerType: "bot", ownerName: "Margin Hawk Bot", priceCents: 320, inventory: 50 },
       { ownerType: "bot", ownerName: "Value Balanced Bot", priceCents: 280, inventory: 40 },
-      { ownerType: "unclaimed", ownerName: null, priceCents: 300, inventory: 0 },
+      { ownerType: "bot", ownerName: "Bean There", priceCents: 290, inventory: 45, type: "CoffeeCart" },
       { ownerType: "bot", ownerName: "Scribe Guild AI", priceCents: 350, inventory: 35 },
-      { ownerType: "unclaimed", ownerName: null, priceCents: 300, inventory: 0 },
+      { ownerType: "bot", ownerName: "Daily Grind", priceCents: 315, inventory: 40, type: "CoffeeCart" },
       { ownerType: "bot", ownerName: "Apex Merchant", priceCents: 295, inventory: 60 },
       { ownerType: "unclaimed", ownerName: null, priceCents: 300, inventory: 0 },
-      { ownerType: "unclaimed", ownerName: null, priceCents: 300, inventory: 0 },
+      { ownerType: "bot", ownerName: "Mocha Corner", priceCents: 285, inventory: 35, type: "CoffeeCart" },
       { ownerType: "bot", ownerName: "Clockwork Trader", priceCents: 420, inventory: 25 },
       { ownerType: "unclaimed", ownerName: null, priceCents: 300, inventory: 0 },
       { ownerType: "unclaimed", ownerName: null, priceCents: 300, inventory: 0 },
@@ -478,8 +478,8 @@ export class IsometricEngineV3 {
 
     TOWN.plotSlots.forEach((slot, id) => {
       const o = owners[id];
-      const bType = types[id % types.length];
-      const isUpgraded = id !== 0 && id % 4 === 0;
+      const bType = o.type ?? types[id % types.length];
+      const isUpgraded = id === 0 || id % 4 === 0; // shopper bonus; your shop still draws the basic building
       const bConfig = BUILDING_SPRITES.businesses[bType as keyof typeof BUILDING_SPRITES.businesses] || BUILDING_SPRITES.businesses.CoffeeCart;
       const spritePath = o.ownerType === "unclaimed" ? BUILDING_SPRITES.businesses.Vacant.base : (isUpgraded && id !== 0 ? bConfig.upgraded : bConfig.base);
 

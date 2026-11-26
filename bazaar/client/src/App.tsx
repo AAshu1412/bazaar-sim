@@ -124,7 +124,10 @@ export const App: React.FC = () => {
       engineRef.current?.updatePlotData(0, { inventory: Math.max(0, c.inventory - c.pendingSales), priceCents: c.pendingPrice ?? c.priceCents, isUpgraded: c.upgrades > 0 });
       const activeEvent = c.cityEvent?.name ?? "Quiet", eventTarget = c.cityEvent?.target ?? 0;
       const g = useGameStore.getState();
-      if (g.activeEvent !== activeEvent || g.eventTarget !== eventTarget) useGameStore.setState({ activeEvent, eventTarget });
+      if (g.activeEvent !== activeEvent || g.eventTarget !== eventTarget) {
+        useGameStore.setState({ activeEvent, eventTarget });
+        if (activeEvent !== "Quiet") sfx.playVrfAlert();
+      }
     };
     sync();
     const id = setInterval(sync, 700); // also covers the engine finishing its async load after the first chain update
