@@ -139,7 +139,7 @@ export class GameChain {
       delegation_metadata_ledger: delegationMetadataPdaFromDelegatedAccount(this.ledger),
       oracle_queue: VRF_QUEUE, vrf_program: VRF_PROGRAM_ID, slot_hashes: SYSVAR_SLOT_HASHES_PUBKEY,
       program_identity: this.pda([Buffer.from("identity")]),
-      owner_program: PROGRAM_ID, delegation_program: DELEGATION_PROGRAM_ID, magic_program: MAGIC_PROGRAM_ID, magic_context: MAGIC_CONTEXT_ID,
+      owner_program: PROGRAM_ID, program_id: PROGRAM_ID, delegation_program: DELEGATION_PROGRAM_ID, magic_program: MAGIC_PROGRAM_ID, magic_context: MAGIC_CONTEXT_ID,
       ...extra,
     };
   }
@@ -330,9 +330,22 @@ export class GameChain {
       this.set({ settling: true });
       try {
         const validator = await this.erValidator();
-        await this.timed("TICK", "Committing the shop from the Ephemeral Rollup back to devnet", () => this.send([this.ix("undelegate_shop", Buffer.alloc(0), this.common())], 200_000, true));
+        // one rollup transaction: undelegate, and a Magic Action pays out on devnet right after
+        await this.timed("SETTLE", "Leaving the rollup with a settle Magic Action", () =>
+          this.send([this.ix("undelegate_and_settle", Buffer.alloc(0), this.common())], 300_000, true)
+            // a program without that instruction (not yet upgraded): plain undelegate, settled below
+            .catch(() => this.send([this.ix("undelegate_shop", Buffer.alloc(0), this.common())], 200_000, true)));
         await this.waitFor(async () => !(await this.isDelegated()), 90_000, "the shop to return to devnet");
-        await this.timed("TICK", "Settled your rollup GD to your wallet token account", () => this.send([this.ix("settle_shop", Buffer.alloc(0), this.common())], 250_000));
+        const paid = async () => {
+          const d = (await this.conn.getAccountInfo(this.ledger))!.data; // gd_snapshot@104, gd_credit@112
+          return d.readBigUInt64LE(104) === 0n && d.readBigInt64LE(112) === 0n;
+        };
+        if (await this.waitFor(paid, 15_000, "the Magic Action").then(() => true, () => false)) {
+          const [last] = await this.conn.getSignaturesForAddress(this.ledger, { limit: 1 }, "confirmed");
+          this.log("SETTLE", { message: "Magic Action settled your GD on devnet", signature: last?.signature ?? "sim-settle", latencyMs: 0, isLive: true, er: false });
+        } else {
+          await this.timed("SETTLE", "Settled your rollup GD to your wallet token account", () => this.send([this.ix("settle_shop", Buffer.alloc(0), this.common())], 250_000));
+        }
         await this.timed("TICK", "Shop delegated to the Ephemeral Rollup again", () => this.send([this.delegateIx(validator)], 400_000));
         await this.waitFor(async () => !!(await router.erConn.getAccountInfo(this.ledger)), 30_000, "the rollup to receive the shop");
       } catch (e) {
@@ -512,7 +525,7 @@ export class GameChain {
     if (!this.live) return;
     this.pending++;
     this.set({ pendingSales: this.pending });
-    if (!this.saleTimer) this.saleTimer = setTimeout(() => this.flushSales(), 2500);
+    if (!this.saleTimer) this.saleTimer = setTimeout(() => this.flushSales(), this.state.erMode ? 1000 : 2500);
   }
   private flushSales() {
     this.saleTimer = null;
@@ -531,7 +544,7 @@ export class GameChain {
       } finally {
         this.flushing = false;
         await this.refresh().catch(() => {});
-        if (this.pending > 0 && !this.saleTimer) this.saleTimer = setTimeout(() => this.flushSales(), 800);
+        if (this.pending > 0 && !this.saleTimer) this.saleTimer = setTimeout(() => this.flushSales(), this.state.erMode ? 1000 : 800);
       }
     });
   }

@@ -4,7 +4,10 @@
 //! layer, and `settle_shop` turns the ledger's net GD into real token movement.
 use anchor_lang::prelude::*;
 use anchor_spl::token::{Token, TokenAccount};
-use ephemeral_rollups_sdk::anchor::{commit, delegate};
+use ephemeral_rollups_sdk::anchor::{action, commit, delegate};
+use ephemeral_rollups_sdk::ephem::{CallHandler, FoldableIntentBuilder, MagicIntentBundleBuilder};
+use ephemeral_rollups_sdk::{ActionArgs, ShortAccountMeta};
+use ephemeral_rollups_sdk::pda::ephemeral_balance_pda_from_payer;
 use ephemeral_rollups_sdk::vrf::{
     self,
     anchor::VrfProgram,
@@ -125,15 +128,112 @@ pub struct SettleShop<'info> {
 /// Every rollup spend is checked against `snapshot + credit`, so this amount is never negative.
 #[session_auth_or(ctx.accounts.business.owner == ctx.accounts.signer.key(), BazaarError::Unauthorized)]
 pub fn handle_settle_shop(ctx: Context<SettleShop>) -> Result<()> {
-    ctx.accounts.ledger.cancel_pending_auction(); // its callback can no longer reach this shop
-    let due = available(&ctx.accounts.ledger);
+    let a = ctx.accounts;
+    pay_out(&a.token_program, &a.season, &mut a.ledger, &a.treasury, &a.player_gd)
+}
+
+/// Pays the escrow plus the session's net GD to the shop owner's token account and clears the ledger.
+fn pay_out<'info>(
+    token_program: &Program<'info, Token>,
+    season: &Account<'info, Season>,
+    ledger: &mut Account<'info, ShopLedger>,
+    treasury: &Account<'info, TokenAccount>,
+    player_gd: &Account<'info, TokenAccount>,
+) -> Result<()> {
+    ledger.cancel_pending_auction(); // its callback can no longer reach this shop
+    let due = available(ledger);
     require!(due >= 0, BazaarError::InsufficientFunds);
     if due > 0 {
-        gd::transfer(&ctx.accounts.token_program, &ctx.accounts.season, &ctx.accounts.treasury, &ctx.accounts.player_gd, due as u64)?;
+        gd::transfer(token_program, season, treasury, player_gd, due as u64)?;
     }
-    let l = &mut ctx.accounts.ledger;
-    l.gd_credit = 0;
-    l.gd_snapshot = 0;
+    ledger.gd_credit = 0;
+    ledger.gd_snapshot = 0;
+    Ok(())
+}
+
+// ───────────── Magic Action: settle on the base layer as part of leaving the rollup ─────────────
+
+/// Run by the delegation program after the shop is back on the base layer (scheduled by `undelegate_and_settle`).
+/// Only it can sign for `escrow`. The payout can only reach the owner of the shop's ledger.
+#[action]
+#[derive(Accounts)]
+pub struct SettleShopAction<'info> {
+    #[account(seeds = [b"season", season.authority.as_ref(), season.id.to_le_bytes().as_ref()], bump)]
+    pub season: Account<'info, Season>,
+    #[account(constraint = business.season_id == season.id @ BazaarError::InvalidPlot)]
+    pub business: Account<'info, Business>,
+    #[account(mut, seeds = [b"ledger", business.key().as_ref()], bump)]
+    pub ledger: Account<'info, ShopLedger>,
+    #[account(mut, seeds = [b"gd", season.key().as_ref(), business.owner.as_ref()], bump)]
+    pub player_gd: Account<'info, TokenAccount>,
+    #[account(mut, seeds = [b"treasury", season.key().as_ref()], bump)]
+    pub treasury: Account<'info, TokenAccount>,
+    pub token_program: Program<'info, Token>,
+    // the delegation program appends the next three accounts, in this order
+    /// CHECK: the program that scheduled the action: only this one may
+    #[account(address = crate::ID @ BazaarError::Unauthorized)]
+    pub source_program: UncheckedAccount<'info>,
+    /// CHECK: the payer the action was scheduled with
+    pub escrow_auth: UncheckedAccount<'info>,
+    /// CHECK: signer proves the call came through the delegation program's post-commit path
+    #[account(signer, address = ephemeral_balance_pda_from_payer(&escrow_auth.key(), ACTION_ESCROW_INDEX) @ BazaarError::Unauthorized)]
+    pub escrow: UncheckedAccount<'info>,
+}
+const ACTION_ESCROW_INDEX: u8 = 255; // ActionArgs::new default
+
+pub fn handle_settle_shop_action(ctx: Context<SettleShopAction>) -> Result<()> {
+    let a = ctx.accounts;
+    pay_out(&a.token_program, &a.season, &mut a.ledger, &a.treasury, &a.player_gd)
+}
+
+#[commit]
+#[derive(Accounts, Session)]
+pub struct UndelegateAndSettle<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    #[account(seeds = [b"season", season.authority.as_ref(), season.id.to_le_bytes().as_ref()], bump)]
+    pub season: Account<'info, Season>,
+    #[account(mut, constraint = business.season_id == season.id @ BazaarError::InvalidPlot)]
+    pub business: Account<'info, Business>,
+    #[account(mut, seeds = [b"ledger", business.key().as_ref()], bump)]
+    pub ledger: Account<'info, ShopLedger>,
+    /// CHECK: base-layer token account, only named for the action
+    #[account(seeds = [b"gd", season.key().as_ref(), business.owner.as_ref()], bump)]
+    pub player_gd: UncheckedAccount<'info>,
+    /// CHECK: base-layer token account, only named for the action
+    #[account(seeds = [b"treasury", season.key().as_ref()], bump)]
+    pub treasury: UncheckedAccount<'info>,
+    pub token_program: Program<'info, Token>,
+    /// CHECK: this program, destination of the action
+    #[account(address = crate::ID)]
+    pub program_id: UncheckedAccount<'info>,
+    #[session(signer = payer, authority = business.owner.key())]
+    pub session_token: Option<Account<'info, SessionToken>>,
+}
+
+/// Leave the rollup and settle in one step: commit + undelegate, then a Magic Action pays out on the base layer.
+#[session_auth_or(ctx.accounts.business.owner == ctx.accounts.payer.key(), BazaarError::Unauthorized)]
+pub fn handle_undelegate_and_settle(ctx: Context<UndelegateAndSettle>) -> Result<()> {
+    let a = &ctx.accounts;
+    let meta = |key: Pubkey, is_writable: bool| ShortAccountMeta { pubkey: key.to_bytes().into(), is_writable };
+    let settle = CallHandler {
+        destination_program: crate::ID,
+        accounts: vec![
+            meta(a.season.key(), false),
+            meta(a.business.key(), false),
+            meta(a.ledger.key(), true),
+            meta(a.player_gd.key(), true),
+            meta(a.treasury.key(), true),
+            meta(a.token_program.key(), false),
+        ],
+        args: ActionArgs::new(anchor_lang::InstructionData::data(&crate::instruction::SettleShopAction {})),
+        escrow_authority: a.payer.to_account_info(),
+        compute_units: 80_000,
+    };
+    MagicIntentBundleBuilder::new(a.payer.to_account_info(), a.magic_context.to_account_info(), a.magic_program.to_account_info())
+        .commit_and_undelegate(&[a.business.to_account_info(), a.ledger.to_account_info()])
+        .add_post_undelegate_actions([settle])
+        .build_and_invoke()?;
     Ok(())
 }
 

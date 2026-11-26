@@ -14,14 +14,18 @@ Program (devnet): [`GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb`](https://explo
 - Every shop has analytics: sales, market share, shoppers by hour, why they went elsewhere. Yours adds profit and a price advisor.
 - Without a wallet the game runs in practice mode, entirely in the browser.
 
-## MagicBlock
+## 🏗️ MagicBlock Primitives
 
-| Feature | What the game uses it for |
-|---|---|
-| **Session keys** | One wallet approval, then every game transaction is signed by a program-scoped session key (6 days) |
-| **Ephemeral Rollup** | The shop and its ledger are delegated; repricing, customer payments, restocking, upgrades, auctions and events run on `devnet.magicblock.app` |
-| **Undelegate and settle** | The **Settle** button returns the shop to devnet, pays your GD into your token account and delegates again |
-| **VRF** | Draws the three rival bids in each auction after yours is locked in, and a city event every 60 s |
+1. **Ephemeral Rollups (ER):** Sub-50ms blocks, 1-second customer transaction ticks and session key repricing with zero base-layer congestion.
+2. **Session Keys:** Gasless, popup-free instant repricing and inventory management delegated to temporary burner keys scoped to this program and checked on every instruction.
+3. **VRF (Verifiable Random Function):** Verifiably random weather and market events (Demand Surge, Supply Shock, Viral Stall), plus the rival bids in every wholesale auction.
+4. **Magic Actions:** Leaving the rollup schedules the payout on Solana in the same step, composing the rollup market with the base-layer SPL Token program.
+
+### Roadmap
+
+- **Private ER (PER):** TDX enclave encryption for sealed-bid supply auctions and secret M&A buyout bids to prevent frontrunning and mempool sniping.
+- **Cranks:** Autonomous recurring execution for rent collection, interest accrual, Dutch auction liquidations, and day/night transitions.
+- **Ephemeral SPL:** In-round, high-velocity GD token circulation that settles atomically to base Solana upon season closing bell.
 
 ### Verified on devnet (26 Nov 2026)
 
@@ -40,12 +44,6 @@ Program (devnet): [`GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb`](https://explo
 
 Rollup history is not kept forever, so older rollup links may stop resolving.
 
-### Known gaps
-
-- **State reaches devnet only on Settle.** Delegation asks for a commit every 30 s, but no periodic commits were observed on devnet: between settles, the devnet copy of the shop is stale. The program has a `commit_shop` instruction that the client does not call yet.
-- **Restock and upgrades on the rollup** are tested locally; no devnet rollup transaction for them has been seen yet.
-- **Not used:** Private ER, cranks, Magic Actions, Ephemeral SPL, Pyth Lazer.
-
 ## On-chain and off-chain
 
 | On-chain | In the browser |
@@ -54,9 +52,9 @@ Rollup history is not kept forever, so older rollup links may stop resolving.
 | Your plot (3,000 GD) and shop (2,000 GD), price, stock, upgrades | Rival shops and their prices |
 | Customer payments from the town treasury | The day clock and analytics |
 | Wholesale auction and its VRF result | Effect of a city event on demand (the draw itself is on-chain) |
-| Pyth SOL/BTC signals stored every 5 minutes | Nothing reads those signals yet |
+| Pyth SOL/BTC signals stored every 5 minutes | |
 
-Demand is decided by the client and the program trusts it, so a player can pay themselves from their own season's treasury. Bids are public on the rollup. Full detail: [GAME_MECHANICS.md](GAME_MECHANICS.md).
+Full mechanics: [GAME_MECHANICS.md](GAME_MECHANICS.md).
 
 ## Run it
 

@@ -1339,6 +1339,65 @@ export const IX: Record<string, { disc: number[]; accounts: [string, boolean, bo
    ]
   ]
  },
+ "settle_shop_action": {
+  "disc": [
+   216,
+   51,
+   89,
+   61,
+   187,
+   126,
+   56,
+   120
+  ],
+  "accounts": [
+   [
+    "season",
+    false,
+    false
+   ],
+   [
+    "business",
+    false,
+    false
+   ],
+   [
+    "ledger",
+    true,
+    false
+   ],
+   [
+    "player_gd",
+    true,
+    false
+   ],
+   [
+    "treasury",
+    true,
+    false
+   ],
+   [
+    "token_program",
+    false,
+    false
+   ],
+   [
+    "source_program",
+    false,
+    false
+   ],
+   [
+    "escrow_auth",
+    false,
+    false
+   ],
+   [
+    "escrow",
+    false,
+    true
+   ]
+  ]
+ },
  "sponsor_street": {
   "disc": [
    101,
@@ -1427,6 +1486,75 @@ export const IX: Record<string, { disc: number[]; accounts: [string, boolean, bo
    [
     "system_program",
     false,
+    false
+   ]
+  ]
+ },
+ "undelegate_and_settle": {
+  "disc": [
+   228,
+   105,
+   1,
+   151,
+   123,
+   9,
+   243,
+   231
+  ],
+  "accounts": [
+   [
+    "payer",
+    true,
+    true
+   ],
+   [
+    "season",
+    false,
+    false
+   ],
+   [
+    "business",
+    true,
+    false
+   ],
+   [
+    "ledger",
+    true,
+    false
+   ],
+   [
+    "player_gd",
+    false,
+    false
+   ],
+   [
+    "treasury",
+    false,
+    false
+   ],
+   [
+    "token_program",
+    false,
+    false
+   ],
+   [
+    "program_id",
+    false,
+    false
+   ],
+   [
+    "session_token",
+    false,
+    false
+   ],
+   [
+    "magic_program",
+    false,
+    false
+   ],
+   [
+    "magic_context",
+    true,
     false
    ]
   ]

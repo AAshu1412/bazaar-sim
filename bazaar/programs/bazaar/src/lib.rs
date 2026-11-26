@@ -118,6 +118,13 @@ pub mod bazaar {
     pub fn er_serve_customers(ctx: Context<ErServe>, count: u16) -> Result<()> {
         handle_er_serve_customers(ctx, count)
     }
+    /// Magic Action: leave the rollup and have the base layer pay out in the same step
+    pub fn undelegate_and_settle(ctx: Context<UndelegateAndSettle>) -> Result<()> {
+        handle_undelegate_and_settle(ctx)
+    }
+    pub fn settle_shop_action(ctx: Context<SettleShopAction>) -> Result<()> {
+        handle_settle_shop_action(ctx)
+    }
     pub fn commit_shop(ctx: Context<CommitShop>) -> Result<()> {
         handle_commit_shop(ctx)
     }
