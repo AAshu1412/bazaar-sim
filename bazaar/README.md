@@ -10,6 +10,7 @@ Program (devnet): [`GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb`](https://explo
 
 - Each shopper wants one thing, shown over their head. The mix shifts through the day (coffee in the morning, food at lunch).
 - Shoppers have a budget and pick among shops selling what they want, weighing price, foot traffic and brand.
+- Your shop pays $20 rent every game day, collected automatically.
 - Rivals restock overnight and raise or cut prices depending on how their day went.
 - Every shop has analytics: sales, market share, shoppers by hour, why they went elsewhere. Yours adds profit and a price advisor.
 - Without a wallet the game runs in practice mode, entirely in the browser.
@@ -20,11 +21,11 @@ Program (devnet): [`GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb`](https://explo
 2. **Session Keys:** Gasless, popup-free instant repricing and inventory management delegated to temporary burner keys scoped to this program and checked on every instruction.
 3. **VRF (Verifiable Random Function):** Verifiably random weather and market events (Demand Surge, Supply Shock, Viral Stall), plus the rival bids in every wholesale auction.
 4. **Magic Actions:** Leaving the rollup schedules the payout on Solana in the same step, composing the rollup market with the base-layer SPL Token program.
+5. **Cranks:** Autonomous recurring execution for rent collection: MagicBlock's scheduler charges every shop session its daily rent on the rollup, with no keeper server.
 
 ### Roadmap
 
 - **Private ER (PER):** TDX enclave encryption for sealed-bid supply auctions and secret M&A buyout bids to prevent frontrunning and mempool sniping.
-- **Cranks:** Autonomous recurring execution for rent collection, interest accrual, Dutch auction liquidations, and day/night transitions.
 - **Ephemeral SPL:** In-round, high-velocity GD token circulation that settles atomically to base Solana upon season closing bell.
 
 ### Verified on devnet (26 Nov 2026)
@@ -42,6 +43,8 @@ Program (devnet): [`GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb`](https://explo
 | VRF answers the event | rollup | [23uAgDeD…](https://explorer.solana.com/tx/23uAgDeDgoLxF38QzSg9CAhYSwf4DKpjBLePSZ8m2pbVTKnmrTPTrniZc3rR7yiK4rwsJXqzr2DZyjnzGDKf1LUV?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
 | Settle: leave the rollup and schedule a Magic Action | rollup | [5DKBGBbB…](https://explorer.solana.com/tx/5DKBGBbBVY7z45XTCGUrPsLxS3xSpWYuZ1FAU72podF91Kn4Ra3u5bzzi2kgXna1R75zAFaX47y17jn5yttbjpYU?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
 | Magic Action pays out | devnet | [2U72X3td…](https://explorer.solana.com/tx/2U72X3tdMrVihwXTq2j58EdriEtJRhkGD1heZCF9MJ6QexGJvrkLnok9LNrL6fm8z7CBKbdP3fvbhA4iNxHy4JiW?cluster=devnet) |
+| Schedule the rent crank | rollup | [2KCTjBa7…](https://explorer.solana.com/tx/2KCTjBa7GEGrY9YmvS21ZRGFCoLDFkVL5YQNXLFswAkLj1Ba4yauUxQC7zNSXYX1a1hNu7jLcVrvarbgdwb11cZV?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
+| Crank charges rent | rollup | [3inwpnkH…](https://explorer.solana.com/tx/3inwpnkHuCEU6qZD7A8eb1hogtrAVqWgFexgxULUoW2fw1vHrpfEz3HcD9rBNyjnyhB3Pr4Af1vPw89Xj9erg7Dw?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
 
 Rollup history is not kept forever, so older rollup links may stop resolving.
 
