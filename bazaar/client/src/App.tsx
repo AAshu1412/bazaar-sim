@@ -103,7 +103,7 @@ export const App: React.FC = () => {
       if (document.hidden || !engine?.plots.length) return;
       const now = clockAt((seconds += 0.5));
       engine.hour = now.hour;
-      engine.setDaylight(now.hour < 8 ? 0.18 : now.hour < 17 ? 0 : Math.min(0.42, (now.hour - 16) * 0.08));
+      engine.setDaylight(now.hour < 7 ? 0.28 : now.hour < 8 ? 0.14 : now.hour < 17 ? 0 : Math.min(0.52, (now.hour - 16) * 0.12));
       if (now.day !== day) {
         day = now.day;
         const yesterday = useStats.getState().days.at(-1)!;

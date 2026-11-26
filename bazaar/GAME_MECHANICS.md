@@ -35,7 +35,7 @@ Verified locally (rollup validator 2.0.3 on an **Agave 4.2.2** base validator): 
 
 ## 5. Days, shoppers and demand  [CLIENT-SIM]
 Rules live in `client/src/engine/economy.ts` (pure; `npm run check` tests them).
-- **Clock:** one day = 150 s, 06:00-22:00. The town darkens in the evening. Clock and crowd pause while the tab is hidden.
+- **Clock:** one day = 150 s, 06:00-22:00. The town darkens in the evening and at dawn; street lamps switch on and light their surroundings (`engine/lamps.ts`). Lamps painted into building art do not change. Clock and crowd pause while the tab is hidden.
 - **Shoppers:** one every 0.75 s (city events change the rate). Each wants ONE trade, shown over their head, drawn from the hour's mix (coffee / food / electronics / flowers / books, %): morning rush 55/15/8/12/10, lunch 22/48/10/8/12, afternoon 28/14/24/10/24, evening 20/35/10/25/10.
 - **Budget:** the trade's going rate (coffee $3.00, food $3.40, electronics $3.20, flowers $3.05, books $3.00) x random 0.90-1.35. Supply scare raises it 15%, bargain frenzy lowers it 8%.
 - **Choice:** only shops of that trade, in stock and within budget. score = -price($) x event price weight + foot traffic (Corner 0.45, Main 0.25, Side 0.10, Alley 0) + 0.35 brand (signage; some rivals) + viral bonus + taste noise (-0.4..0.4). Highest wins; if none qualifies the shopper leaves.
@@ -72,6 +72,7 @@ Nothing about the event is stored on-chain, and the player triggers the request,
 - Every 5 minutes (when connected) the client posts fresh SOL/BTC price updates and calls `apply_market_signals`, which stores SOL move (bps) and BTC volatility in a `MarketSignals` account. **Nothing reads those values**; they do not affect demand. BTC is best-effort (the feed can be stale).
 
 ## 10. Map and town (all CLIENT-SIM visuals)
+Beyond the town wall is scenery only (`engine/surroundings.ts`): forests, hills, mountains, a river, a lake, farms and the four roads leading out. East of town the **East District** sits under mist, marked "soon"; it cannot be entered. The camera cannot leave this area.
 28x28 grid, planned town: two 2-wide avenues crossing at a plaza with a fountain; a ring road; sidewalks; four city blocks (each 3x3 lots of 2x2 tiles with a park in the middle: garden, statue, pond, orchard). 36 lots = 20 playable plots + 6 landmarks + 6 accent shops + 4 parks. Outskirts with farms, workshops, fields and trees. Four gates at the avenue ends where customers spawn/exit.
 Plot tiers: 4 Corner (around the plaza; yours is the north-west one), then the 16 other plots ranked by distance to the plaza: 6 MainStreet, 6 SideStreet, 4 Alley. Tier only affects the customer-score bonus. Only plot #0 exists on-chain. Plot types cycle CoffeeCart/StreetFood/Electronics/FlowerStall/Bookshop (id mod 5), except plot 7 which is a coffee house; there are three rival coffee houses (Bean There, Daily Grind, Mocha Corner). Shoppers pick across all shop types. Unclaimed plots show a fenced "for lease" lot.
 Rival shops (19 plots): one rival "human" and several bots with fixed prices ($2.75-$4.20), starting stock 25-60 that never refills (they show SOLD OUT forever once empty). Bots never reprice, restock or pay anything; their numbers are local. Names like "Undercutter Bot" are labels only.

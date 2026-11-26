@@ -10,6 +10,8 @@ import type { ShopperRow } from "../store/statsStore";
 import { useGameStore } from "../store/gameStore";
 import { PLACES, shopKind, uiIcon, price, type PlaceId } from "./shopKinds";
 import { ROOF_TOPS } from "./roofTops";
+import { WORLD, DISTRICT, buildSurroundings, surroundingAssets } from "./surroundings";
+import { Night, lampAssets } from "./lamps";
 import { createSign, drawShopSign, drawPlaceSign, drawLeaseSign, label, SIGN_FONT, type Sign } from "./signs";
 
 export type PlotOwnerType = "player" | "rivalHuman" | "bot" | "unclaimed";
@@ -117,9 +119,10 @@ export class IsometricEngineV3 {
   public onTurnedAway?: (plotId: number) => void;
   public hour = OPEN_HOUR;
 
-  private darkness = 0;
+  private night: Night | null = null;
+  private mist: PIXI.Sprite[] = [];
+  private mistTimer = 0;
   private lastGrumble = 0;
-  private nightFilter: PIXI.Graphics = new PIXI.Graphics();
   private haloPulseTimer: number = 0;
   private destroyed = false;
 
@@ -170,7 +173,8 @@ export class IsometricEngineV3 {
       .pinch()
       .wheel({ trackpadPinch: true, smooth: 8 })
       .decelerate({ friction: 0.88 })
-      .clampZoom({ minScale: 0.35, maxScale: 2.4 });
+;
+    this.limitCamera();
 
     viewport.on("clicked", (e: { world: { x: number; y: number } }) => {
       const t = this.pickAt(e.world.x, e.world.y);
@@ -190,12 +194,18 @@ export class IsometricEngineV3 {
     viewport.addChild(this.signLayer);
     viewport.addChild(this.uiLayer);
     this.signLayer.sortableChildren = true;
-    app.stage.addChild(this.nightFilter);
 
     this.entitiesLayer.sortableChildren = true;
 
     await Promise.all([this.preloadTextures(), document.fonts.load(`600 14px ${SIGN_FONT}`).catch(() => [])]);
     if (this.destroyed) { app.destroy(true, { children: true }); this.app = null; return; }
+
+    // countryside first, so the town is drawn over it
+    const countryside = new PIXI.Container();
+    this.mist = buildSurroundings(this.groundLayer, countryside, (x, y) => this.toIso(x, y), this.TILE_H);
+    viewport.addChildAt(countryside, viewport.getChildIndex(this.entitiesLayer));
+    this.night = new Night();
+    viewport.addChildAt(this.night.layer, viewport.getChildIndex(this.signLayer));
 
     // Build 28x28 terrain grid
     this.buildTerrain();
@@ -204,6 +214,7 @@ export class IsometricEngineV3 {
     this.placeLandmarks();
     this.place20Plots();
     this.placeScenery();
+    this.placeDistrict();
 
     // Center viewport on player's corner shop
     this.focusPlayerPlot();
@@ -223,7 +234,7 @@ export class IsometricEngineV3 {
     if (parent) {
       this.app.renderer.resize(parent.clientWidth, parent.clientHeight);
       this.viewport.resize(parent.clientWidth, parent.clientHeight);
-      this.drawNight();
+      this.limitCamera();
     }
   };
 
@@ -239,6 +250,15 @@ export class IsometricEngineV3 {
     if (e.key === "d" || e.key === "ArrowRight") this.viewport.left += panSpeed;
   };
 
+  /** the camera stays inside the countryside, however far you zoom or drag */
+  private limitCamera() {
+    const v = this.viewport;
+    if (!v) return;
+    const minScale = Math.max(0.35, v.screenWidth / (WORLD.right - WORLD.left), v.screenHeight / (WORLD.bottom - WORLD.top));
+    v.clampZoom({ minScale, maxScale: 2.4 });
+    v.clamp({ left: WORLD.left, right: WORLD.right, top: WORLD.top, bottom: WORLD.bottom, underflow: "center" });
+  }
+
   public toIso(gx: number, gy: number): Point {
     return {
       x: (gx - gy) * (this.TILE_W / 2),
@@ -251,6 +271,8 @@ export class IsometricEngineV3 {
 
     for (const n of ["coffee", "food", "tech", "flower", "book", "gavel", "bank", "eye", "mask", "clerk", "help", "chart"]) allUrls.add(uiIcon(n));
     for (let i = 0; i < 6; i++) allUrls.add(`/assets/people/person${i}.png`);
+    for (const url of [...surroundingAssets(), ...lampAssets]) allUrls.add(url);
+    allUrls.add(uiIcon("pin"));
 
     Object.values(BUILDING_SPRITES.businesses).forEach((bz) => {
       allUrls.add(bz.base);
@@ -596,7 +618,19 @@ export class IsometricEngineV3 {
       container.addChild(sprite);
       container.zIndex = iso.y + this.TILE_H / 2;
       this.entitiesLayer.addChild(container);
+      if (pr.sprite === "street-lamp") this.night?.addLamp(sprite, iso.x, iso.y + this.TILE_H / 2);
     });
+  }
+
+  /** the neighbourhood that is not open yet: one signed building peeking out of the mist */
+  private placeDistrict() {
+    const place = PLACES.find((p) => p.id === "district")!, { gx, gy } = DISTRICT.landmark;
+    const { container, sprite } = this.addLotSprite({ gx, gy, role: "outskirt", sprite: "town-clerk-office", folder: "exterior" });
+    sprite.tint = 0xaab6d0;
+    const sign = createSign();
+    drawPlaceSign(sign, place);
+    this.addTarget(place.id, container, sprite, sign, () => this.onLandmarkClick?.(place.id), -52);
+    this.landmarks.push({ id: place.id, label: place.name, modal: place.id, gx, gy, sprite });
   }
 
   /** 2x2 sprite centred on its lot */
@@ -810,6 +844,9 @@ export class IsometricEngineV3 {
 
     this.entitiesLayer.sortChildren();
     this.syncTargets();
+    this.night?.step(delta);
+    this.mistTimer += delta * 0.008;
+    this.mist.forEach((m, i) => (m.pivot.x = Math.sin(this.mistTimer + i) * 14));
   }
 
   public spawnFloatingText(x: number, y: number, textStr: string, fillColor: number = 0x10b981) {
@@ -886,16 +923,9 @@ export class IsometricEngineV3 {
     return repriced;
   }
 
-  /** 0 = noon, 0.45 = late evening */
+  /** 0 = noon, about 0.5 = late evening: darkens the town and lights the lamps */
   public setDaylight(darkness: number) {
-    if (darkness === this.darkness || !this.app) return;
-    this.darkness = darkness;
-    this.drawNight();
-  }
-  private drawNight() {
-    if (!this.app) return;
-    this.nightFilter.clear();
-    if (this.darkness > 0) this.nightFilter.rect(0, 0, this.app.screen.width, this.app.screen.height).fill({ color: 0x0b1030, alpha: this.darkness });
+    this.night?.set(darkness);
   }
 
   public updatePlotData(plotId: number, data: Partial<PlotInfo>) {

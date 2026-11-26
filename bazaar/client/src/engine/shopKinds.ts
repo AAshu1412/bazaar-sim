@@ -16,6 +16,7 @@ export const PLACES = [
   { id: "intel", name: "Intel Guild", does: "Scouting", icon: "eye", soon: true },
   { id: "manager", name: "Managers", does: "Hire staff", icon: "clerk", soon: true },
   { id: "spectator", name: "Theatre", does: "Spectating", icon: "mask", soon: true },
+  { id: "district", name: "East District", does: "A new neighbourhood", icon: "pin", soon: true },
 ] as const;
 export type PlaceId = (typeof PLACES)[number]["id"];
 

@@ -35,6 +35,11 @@ export const TILES = {
     if (v) g += slab(0.3, 0.3, 0.7, 0.7, "#a9453a", "#6a2a22") + slab(0.4, 0.4, 0.6, 0.6, "#e6c25a", "#8a6a22");
     return g;
   },
+  water: (r, v) => {
+    let g = `<path d="${DIA}" fill="${v ? "#3f93b8" : "#3a8bb0"}"/>`;
+    for (let i = 0; i < 5; i++) { const [x, y] = pt(r, 0.75); g += `<path d="M${f(x - 7)} ${f(y)}q3.5 -2.6 7 0t7 0" stroke="#a9dcee" stroke-width="1.3" fill="none" opacity=".75"/>`; }
+    return g;
+  },
   dirt: (r) => {
     let g = `<path d="${DIA}" fill="#a98a60"/>`;
     for (let i = 0; i < 4; i++) { const [x, y] = pt(r, 0.7); g += `<ellipse cx="${f(x)}" cy="${f(y)}" rx="${f(8 + r() * 8)}" ry="${f(3 + r() * 3)}" fill="${shade("#a98a60", 0.85 + r() * 0.3)}" opacity=".6"/>`; }
@@ -51,5 +56,5 @@ export const TILES = {
     return g;
   },
 };
-export const VARIANTS = { grass: 4, road: 3, sidewalk: 3, plaza: 2, dirt: 2, field: 2 };
+export const VARIANTS = { grass: 4, road: 3, sidewalk: 3, plaza: 2, dirt: 2, field: 2, water: 2 };
 export const tileSvg = (kind, v) => wrap(TILES[kind](rng(`${kind}${v}`), v));

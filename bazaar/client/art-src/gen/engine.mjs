@@ -114,9 +114,9 @@ export function tree(S, x, y, s = 1, c = "#4a8a3a", trunk = "#6b4a2e") {
   for (let i = 0; i < 9; i++) g += `<circle cx="${f1(cx + (S.r() - 0.5) * 36 * s)}" cy="${f1(cy - (30 + S.r() * 34) * s)}" r="${f1(2.2 * s)}" fill="${shade(c, 1.4)}" opacity=".7"/>`;
   S.add(g);
 }
-export function lamppost(S, x, y, h = 40) {
+export function lamppost(S, x, y, h = 40, lit = true) {
   const [cx, cy] = P(x, y, 0);
-  S.add(`<circle cx="${f1(cx)}" cy="${f1(cy - h)}" r="16" fill="${S.radial([[0, "#ffd98a", 0.55], [1, "#ffd98a", 0]])}"/><rect x="${f1(cx - 1.6)}" y="${f1(cy - h)}" width="3.2" height="${h}" fill="#2f2a26"/><ellipse cx="${f1(cx)}" cy="${f1(cy)}" rx="5" ry="2.5" fill="#2f2a26"/><polygon points="${f1(cx - 5)},${f1(cy - h)} ${f1(cx + 5)},${f1(cy - h)} ${f1(cx + 3.5)},${f1(cy - h - 9)} ${f1(cx - 3.5)},${f1(cy - h - 9)}" fill="#ffcf6b" stroke="${OUT}" stroke-width="1.2"/><polygon points="${f1(cx - 6.5)},${f1(cy - h - 9)} ${f1(cx + 6.5)},${f1(cy - h - 9)} ${f1(cx)},${f1(cy - h - 15)}" fill="#2f2a26"/>`);
+  S.add(`${lit ? `<circle cx="${f1(cx)}" cy="${f1(cy - h)}" r="16" fill="${S.radial([[0, "#ffd98a", 0.55], [1, "#ffd98a", 0]])}"/>` : ""}<rect x="${f1(cx - 1.6)}" y="${f1(cy - h)}" width="3.2" height="${h}" fill="#2f2a26"/><ellipse cx="${f1(cx)}" cy="${f1(cy)}" rx="5" ry="2.5" fill="#2f2a26"/><polygon points="${f1(cx - 5)},${f1(cy - h)} ${f1(cx + 5)},${f1(cy - h)} ${f1(cx + 3.5)},${f1(cy - h - 9)} ${f1(cx - 3.5)},${f1(cy - h - 9)}" fill="${lit ? "#ffe39a" : "#8f9aa6"}" stroke="${OUT}" stroke-width="1.2"/><polygon points="${f1(cx - 6.5)},${f1(cy - h - 9)} ${f1(cx + 6.5)},${f1(cy - h - 9)} ${f1(cx)},${f1(cy - h - 15)}" fill="#2f2a26"/>`);
 }
 export function planter(S, x, y, flowers = ["#e66f9a", "#f2c94c", "#ffffff"]) {
   box(S, x, y, 0, 14, 8, 8, "#8b5a34");

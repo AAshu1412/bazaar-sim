@@ -67,4 +67,28 @@ export const SCENERY = {
   "tree-birch": (S) => { tree(S, 50, 50, 1.0, "#79a845", "#cfc7b4"); },
   "tree-pine": (S) => { pineTree(S, 50, 50, 1.15); },
   "street-lamp": (S) => { lamppost(S, 50, 50, 46); },
+  "street-lamp-off": (S) => { lamppost(S, 50, 50, 46, false); },
+  // ---------- countryside around the town ----------
+  forest: (S) => {
+    pineTree(S, 22, 18, 1.0); tree(S, 70, 24, 0.85, "#3f7f38"); pineTree(S, 18, 66, 0.85); tree(S, 48, 48, 1.0, "#4a8a3a"); pineTree(S, 82, 62, 1.05); tree(S, 46, 86, 0.8, "#5f9a40"); bush(S, 80, 90, 0.8, "#4a8a3a");
+  },
+  pines: (S) => { pineTree(S, 30, 22, 0.9); pineTree(S, 72, 34, 1.15); pineTree(S, 26, 66, 1.05); pineTree(S, 62, 76, 0.85); },
+  rocks: (S) => {
+    const rock = (x, y, r, h) => { const [cx, cy] = P(x, y, 0); S.add(`<path d="M${f(cx - r)} ${f(cy)}L${f(cx - r * 0.6)} ${f(cy - h)}L${f(cx + r * 0.15)} ${f(cy - h * 1.15)}L${f(cx + r * 0.8)} ${f(cy - h * 0.6)}L${f(cx + r)} ${f(cy)}Q${f(cx)} ${f(cy + r * 0.4)} ${f(cx - r)} ${f(cy)}Z" fill="${S.grad([[0, "#c4c1b6"], [1, "#807d72"]], [0, 0, 1, 1])}" stroke="${O}" stroke-width="1.6" stroke-linejoin="round"/><path d="M${f(cx + r * 0.15)} ${f(cy - h * 1.15)}L${f(cx)} ${f(cy - h * 0.3)}" stroke="#6e6b62" stroke-width="1.2" fill="none"/>`); };
+    rock(38, 40, 26, 24); rock(66, 62, 18, 16); rock(30, 74, 12, 10); bush(S, 74, 28, 0.6, "#5a9a44");
+  },
+  hill: (S) => {
+    const [cx, cy] = P(50, 56, 0);
+    S.add(`<path d="M${f(cx - 130)} ${f(cy + 6)}Q${f(cx - 78)} ${f(cy - 84)} ${f(cx - 4)} ${f(cy - 82)}Q${f(cx + 82)} ${f(cy - 80)} ${f(cx + 130)} ${f(cy + 6)}Q${f(cx)} ${f(cy + 52)} ${f(cx - 130)} ${f(cy + 6)}Z" fill="${S.grad([[0, "#86bb55"], [1, "#4c7f37"]])}" stroke="#2f5426" stroke-width="1.8"/><path d="M${f(cx - 86)} ${f(cy - 26)}Q${f(cx - 44)} ${f(cy - 68)} ${f(cx + 6)} ${f(cy - 66)}" stroke="#b5da7e" stroke-width="5" fill="none" opacity=".6" stroke-linecap="round"/>`);
+    pineTree(S, 30, 26, 0.6); pineTree(S, 48, 22, 0.75); tree(S, 74, 46, 0.5, "#3f7f38");
+  },
+  mountain: (S) => {
+    const [cx, cy] = P(50, 62, 0);
+    const peak = (dx, w, h, tone) => { const x = cx + dx; S.add(`<path d="M${f(x - w)} ${f(cy)}L${f(x - w * 0.18)} ${f(cy - h)}L${f(x + w * 0.04)} ${f(cy - h * 0.9)}L${f(x + w * 0.18)} ${f(cy - h * 0.96)}L${f(x + w)} ${f(cy)}Q${f(x)} ${f(cy + w * 0.3)} ${f(x - w)} ${f(cy)}Z" fill="${S.grad([[0, tone[0]], [1, tone[1]]], [0, 0, 1, 0])}" stroke="${O}" stroke-width="1.8" stroke-linejoin="round"/><path d="M${f(x - w * 0.46)} ${f(cy - h * 0.66)}L${f(x - w * 0.18)} ${f(cy - h)}L${f(x + w * 0.04)} ${f(cy - h * 0.9)}L${f(x + w * 0.18)} ${f(cy - h * 0.96)}L${f(x + w * 0.46)} ${f(cy - h * 0.64)}L${f(x + w * 0.2)} ${f(cy - h * 0.72)}L${f(x)} ${f(cy - h * 0.6)}L${f(x - w * 0.22)} ${f(cy - h * 0.74)}Z" fill="#f4f6fa" stroke="${O}" stroke-width="1.4" stroke-linejoin="round"/>`); };
+    peak(-58, 72, 96, ["#a9a79c", "#6f6c63"]); peak(30, 100, 150, ["#b6b3a8", "#65625a"]);
+    pineTree(S, 6, 88, 0.6); pineTree(S, 94, 72, 0.7); pineTree(S, 78, 98, 0.55);
+  },
+  cloud: (S) => {
+    for (const [dx, dy, r] of [[-86, 0, 44], [-36, -18, 56], [30, -8, 62], [84, 8, 40], [0, 20, 52]]) S.add(`<circle cx="${151 + dx}" cy="${150 + dy}" r="${r}" fill="${S.radial([[0, "#ffffff", 0.95], [0.6, "#eef3fb", 0.7], [1, "#e4ecf8", 0]])}"/>`);
+  },
 };
