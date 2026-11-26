@@ -5,11 +5,37 @@ import { InteriorBanner } from "./InteriorBanner";
 import { interiorFor } from "../engine/buildingRegistry";
 import { shopKind, price, money } from "../engine/shopKinds";
 import { Badge, Meter, PanelHead } from "./ui";
+import { FOOT_TRAFFIC } from "../engine/economy";
 import type { ShopDay } from "../store/statsStore";
 
 const TIERS = { Corner: "Corner plot", MainStreet: "Main Street", SideStreet: "Side Street", Alley: "Alley" } as const;
 export const MIN_PRICE = 100, MAX_PRICE = 600;
 export const RESTOCK_UNITS = 20;
+
+const TRAFFIC_NAMES = { Corner: "Very busy", MainStreet: "Busy", SideStreet: "Quiet", Alley: "Very quiet" } as const;
+
+/** A plot's foot traffic, in the same terms the shoppers use: as good as charging that much less. */
+const FootTraffic: React.FC<{ tier: PlotInfo["tier"]; mine: PlotInfo["tier"] }> = ({ tier, mine }) => {
+  const levels = Object.keys(FOOT_TRAFFIC).length, level = levels - Object.keys(FOOT_TRAFFIC).indexOf(tier);
+  const pull = FOOT_TRAFFIC[tier], gap = Math.round((pull - FOOT_TRAFFIC[mine]) * 100) / 100;
+  return (
+    <section aria-label="Foot traffic" className="well space-y-2 p-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <h3 className="text-sm font-extrabold">Foot traffic</h3>
+        <span className="font-display text-base font-semibold">{TRAFFIC_NAMES[tier]} · {level} of {levels}</span>
+      </div>
+      <div className="flex gap-1" aria-hidden>
+        {Array.from({ length: levels }, (_, i) => <span key={i} className={`h-3 flex-1 rounded-full border-2 border-ink ${i < level ? "bg-leaf" : "bg-paper"}`} />)}
+      </div>
+      <p className="text-xs font-bold">
+        {pull > 0 ? <>Shoppers like a shop here as much as one priced <span className="text-leaf">{money(pull)} lower</span> in an alley.</> : "No passing trade: only price and brand bring shoppers here."}
+      </p>
+      <p className="text-xs font-bold text-soft">
+        {gap === 0 ? "Same as your plot." : `Your ${TIERS[mine].toLowerCase()} is ${gap < 0 ? "better" : "worse"} by ${money(Math.abs(gap))}.`}
+      </p>
+    </section>
+  );
+};
 
 interface Props {
   plot: PlotInfo;
@@ -17,6 +43,7 @@ interface Props {
   rivals: PlotInfo[];
   myPriceCents: number;
   myTrade: string;
+  myTier: PlotInfo["tier"];
   /** this shop's books so far today */
   today: ShopDay;
   onStats: () => void;
@@ -33,7 +60,7 @@ interface Props {
   onUpgrade: () => Promise<unknown> | void;
 }
 
-export const PlotInspector: React.FC<Props> = ({ plot, rivals, myPriceCents, myTrade, today, onStats, gd, restockCostGd, stockCap, live, signage, onClose, onReprice, onRestock, onUpgrade }) => {
+export const PlotInspector: React.FC<Props> = ({ plot, rivals, myPriceCents, myTrade, myTier, today, onStats, gd, restockCostGd, stockCap, live, signage, onClose, onReprice, onRestock, onUpgrade }) => {
   const [busy, setBusy] = useState<"restock" | "upgrade" | null>(null);
   const run = async (id: "restock" | "upgrade", fn: () => Promise<unknown> | void) => {
     if (busy) return;
@@ -58,10 +85,11 @@ export const PlotInspector: React.FC<Props> = ({ plot, rivals, myPriceCents, myT
         onClose={onClose}
       />
       <div className="space-y-3 overflow-y-auto p-4">
-        <InteriorBanner className="[@media(max-height:760px)]:hidden" src={interiorFor(empty ? "Vacant" : plot.businessType, mine ? signage : plot.isUpgraded)} alt={empty ? "Empty lot" : `Inside the ${kind.name.toLowerCase()}`} />
+        <InteriorBanner className="[@media(max-height:760px)]:hidden" src={interiorFor(empty ? "Vacant" : plot.businessType, !empty && (mine ? signage : plot.isUpgraded))} alt={empty ? "Empty lot" : `Inside the ${kind.name.toLowerCase()}`} />
 
         {empty ? (
           <>
+            <FootTraffic tier={plot.tier} mine={myTier} />
             <p className="text-sm font-semibold text-soft">Nobody trades here yet. Leasing more shops is not built.</p>
             <button className="btn w-full" disabled>Lease this lot <span className="soon">soon</span></button>
           </>

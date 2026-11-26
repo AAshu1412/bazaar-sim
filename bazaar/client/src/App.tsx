@@ -296,6 +296,7 @@ export const App: React.FC = () => {
           rivals={rivals}
           myPriceCents={mine?.priceCents ?? 0}
           myTrade={mine?.businessType ?? "CoffeeCart"}
+          myTier={mine?.tier ?? "Corner"}
           today={shopOn(useStats.getState().days.at(-1)!, plot.id)}
           onStats={() => setReportsFor(plot.id)}
           gd={gd}

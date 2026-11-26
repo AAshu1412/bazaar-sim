@@ -92,7 +92,7 @@ Price tags above shops: coloured by owner type (you green, rival red, bots indig
 - **Sound:** synthesised in `audio/sfx.ts` (coin on your sales, tap on buttons, chime for city events, gavel / fanfare for auctions). Silent until your first click.
 - **Top bar:** your GD (practice coins without a wallet), stock, price, live SOL/USD from Pyth, wallet, Settle (on the rollup), sound.
 - **Side buttons** (bottom bar on phones): My shop, Town, Auction, Guide.
-- **Map signs:** every claimed shop has exactly one sign, above its roof: type icon, price and stock bar (icon only when zoomed far out; hover shows the shop type). Town Hall and Uncle Ravi have name boards; unbuilt buildings show a greyed "soon" board on hover. Empty lots show "For lease" on hover.
+- **Map signs:** every claimed shop has exactly one sign, above its roof: type icon, price and stock bar (icon only when zoomed far out; hover shows the shop type). Town Hall and Uncle Ravi have name boards; unbuilt buildings show a greyed "soon" board on hover. Empty lots show "For lease" on hover; their panel shows the plot's foot traffic (Corner 0.45, Main 0.25, Side 0.10, Alley 0, shown as an equivalent price cut) against yours.
 - **Shop panel:** price stepper and slider, how many rivals you undercut, stock, restock, signage. Rivals show their price against yours.
 - **Town board:** all shops cheapest first (price, stock, sales seen this visit) and a list of places.
 - **Guide:** Uncle Ravi's 4-step card; opens on first visit, never blocks the town.

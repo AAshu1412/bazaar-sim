@@ -28,7 +28,8 @@ export function pickTrade(hour: number, rnd: () => number): Trade {
 /** the going rate in cents; a shopper's budget is spread around it */
 export const FAIR_PRICE: Record<Trade, number> = { CoffeeCart: 300, StreetFood: 340, Electronics: 320, FlowerStall: 305, Bookshop: 300 };
 export type Tier = "Corner" | "MainStreet" | "SideStreet" | "Alley";
-const FOOT_TRAFFIC: Record<Tier, number> = { Corner: 0.45, MainStreet: 0.25, SideStreet: 0.1, Alley: 0 };
+/** how much a plot adds to a shop's score; 0.45 pulls shoppers like a price $0.45 lower than the same shop in an alley */
+export const FOOT_TRAFFIC: Record<Tier, number> = { Corner: 0.45, MainStreet: 0.25, SideStreet: 0.1, Alley: 0 };
 
 export interface Seller { id: number; type: string; priceCents: number; stock: number; tier: Tier; brand: boolean }
 /** what the active city event does to a decision */
