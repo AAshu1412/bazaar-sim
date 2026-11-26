@@ -3,6 +3,7 @@ import { Check, ChevronRight, X, Lock, BookOpen } from "lucide-react";
 import { BEATS, CAST, CHAPTERS, chapterStart, taskOf, type Action, type World } from "../story/script";
 import { useStory } from "../story/useStory";
 import { sfx } from "../audio/sfx";
+import { voice, clip } from "../audio/voice";
 import { Badge, Modal, PanelHead } from "./ui";
 
 const calm = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -76,14 +77,23 @@ export const StoryGuide: React.FC<Props> = ({ world, busy, onAction, onLook }) =
     lastChapter.current = beat.chapter;
   }, [at, playing]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // the character speaks the line on screen
+  useEffect(() => {
+    if (!playing) return;
+    voice.play(clip("story", at + 1, beat.who), 250);
+    return () => voice.stop();
+  }, [at, playing]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // finishing the task moves the story on by itself
   useEffect(() => {
     if (playing && task && !done && task.done(world, start.current)) { setDone(true); sfx.playChing(); }
   }, [playing, task, done, world]);
   useEffect(() => {
     if (!done) return;
-    const id = setTimeout(next, 1400);
-    return () => clearTimeout(id);
+    let cancel = () => {};
+    // after a moment, and not while the character is still talking
+    const id = setTimeout(() => { cancel = voice.whenDone(next); }, 1400);
+    return () => { clearTimeout(id); cancel(); };
   }, [done, next]);
 
   const waiting = !!task && !done;

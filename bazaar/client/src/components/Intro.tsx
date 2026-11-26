@@ -1,9 +1,11 @@
 /** The opening trailer: the town, the MagicBlock stack under it (live demonstrations), the cast and what is coming. */
 import React, { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, MotionConfig, motion } from "framer-motion";
-import { ArrowRight, ChevronLeft, ChevronRight, Check, X, Pause, Play } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight, Check, X, Pause, Play, Volume2, VolumeX } from "lucide-react";
 import { CAST, type Speaker } from "../story/script";
 import { sfx } from "../audio/sfx";
+import { voice, clip } from "../audio/voice";
+import { useGameStore } from "../store/gameStore";
 import { Badge } from "./ui";
 
 const art = (path: string) => `/assets/${path}.png`;
@@ -295,7 +297,16 @@ export const Intro: React.FC<{ onDone: () => void }> = ({ onDone }) => {
   const scene = SCENES[at], last = at === SCENES.length - 1;
   const go = useCallback((n: number) => setAt(Math.max(0, Math.min(SCENES.length - 1, n))), []);
 
-  useEffect(() => { scene?.sound?.(); }, [at]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { soundEnabled, toggleSound } = useGameStore();
+  // each scene has a sound and a spoken line; leaving the scene cuts the line off
+  useEffect(() => {
+    if (at < 0) return;
+    setPaused(false);
+    scene?.sound?.();
+    voice.play(clip("intro", at + 1, "narrator"), 450);
+    return () => voice.stop();
+  }, [at]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => voice.pause(paused), [paused]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onDone();
@@ -318,13 +329,18 @@ export const Intro: React.FC<{ onDone: () => void }> = ({ onDone }) => {
             {SCENES.map((s, i) => (
               <button key={s.name} tabIndex={-1} onClick={() => go(i)} className="h-1.5 flex-1 overflow-hidden rounded-full bg-paper/20">
                 {i < at && <span className="block h-full w-full bg-gold" />}
-                {i === at && s.seconds > 0 && <span key={at} onAnimationEnd={() => go(at + 1)} className="block h-full w-full origin-left bg-gold" style={{ animation: `fill ${s.seconds}s linear forwards`, animationPlayState: paused ? "paused" : "running" }} />}
+                {i === at && s.seconds > 0 && <span key={at} onAnimationEnd={() => voice.whenDone(() => go(at + 1))} className="block h-full w-full origin-left bg-gold" style={{ animation: `fill ${s.seconds}s linear forwards`, animationPlayState: paused ? "paused" : "running" }} />}
                 {i === at && s.seconds === 0 && <span className="block h-full w-full bg-gold" />}
               </button>
             ))}
           </div>
         )}
-        <button onClick={onDone} className="btn absolute right-4 top-7 z-20">Skip intro</button>
+        <div className="absolute right-4 top-7 z-20 flex gap-2">
+          <button onClick={toggleSound} aria-label={soundEnabled ? "Mute sounds" : "Turn sounds on"} aria-pressed={!soundEnabled} className="btn btn-icon">
+            {soundEnabled ? <Volume2 className="h-4 w-4" aria-hidden /> : <VolumeX className="h-4 w-4" aria-hidden />}
+          </button>
+          <button onClick={onDone} className="btn">Skip intro</button>
+        </div>
 
         <div className="relative z-10 min-h-0 flex-1 overflow-y-auto">
           <AnimatePresence mode="wait">
@@ -332,7 +348,7 @@ export const Intro: React.FC<{ onDone: () => void }> = ({ onDone }) => {
               <motion.div key="start" exit={{ opacity: 0, scale: 1.15 }} className="flex min-h-full flex-col items-center justify-center gap-6 p-6">
                 <motion.img {...pop()} src="/logo/logo.svg" alt="Bazaar" className="w-[300px] max-w-[80vw] sm:w-[420px]" />
                 <motion.button {...rise(0.5)} autoFocus onClick={() => setAt(0)} className="btn btn-gold !h-16 !px-10 !text-xl"><Play className="h-6 w-6" aria-hidden /> Play the intro</motion.button>
-                <motion.p {...rise(0.8)} className="text-sm font-bold text-paper/70">About two minutes, with sound</motion.p>
+                <motion.p {...rise(0.8)} className="text-sm font-bold text-paper/70">About two minutes, with narration</motion.p>
               </motion.div>
             ) : (
               <motion.section key={at} aria-label={scene.name} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, y: -30 }} transition={{ duration: 0.3 }} className="flex min-h-full flex-col items-center justify-center gap-5 px-4 py-14 sm:gap-7 [@media(min-width:1200px)_and_(min-height:800px)]:[zoom:1.2]">

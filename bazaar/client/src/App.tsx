@@ -21,6 +21,7 @@ import { Badge } from "./components/ui";
 import { WalletChip } from "./components/WalletChip";
 import { useGameStore } from "./store/gameStore";
 import { sfx } from "./audio/sfx";
+import { voice } from "./audio/voice";
 import { gameChain, type TxLog } from "./solana/gameChain";
 import { fetchSolPrice } from "./solana/pyth";
 
@@ -131,7 +132,7 @@ export const App: React.FC = () => {
     return () => { clearInterval(spawner); clearInterval(ticker); };
   }, []);
 
-  useEffect(() => { sfx.enabled = soundEnabled; }, [soundEnabled]);
+  useEffect(() => { sfx.enabled = soundEnabled; voice.setEnabled(soundEnabled); }, [soundEnabled]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && !document.querySelector('[role="dialog"]') && handlers.current.closeInspector();
     window.addEventListener("keydown", onKey);

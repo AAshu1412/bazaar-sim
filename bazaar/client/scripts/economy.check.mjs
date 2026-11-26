@@ -41,3 +41,9 @@ for (const b of BEATS) {
   if (b.rollup) assert.equal(taskOf(b, { ...world, rollup: false }), undefined);
 }
 console.log(`story ok: ${CHAPTERS.length} chapters, ${BEATS.length} beats, ${BEATS.filter((b) => b.task).length} tasks`);
+
+// voice: every story line has its recording (after editing a line, delete its mp3 and run `npm run voice` + `voice:audio`)
+import { existsSync } from "node:fs";
+const missing = BEATS.map((b, i) => `story_${String(i + 1).padStart(2, "0")}_${b.who}.mp3`).filter((f) => !existsSync(new URL(`../public/voice/${f}`, import.meta.url)));
+assert.deepEqual(missing, [], "story lines without audio");
+console.log("voice ok:", BEATS.length, "story recordings present");
