@@ -134,8 +134,8 @@ for (const [x, y] of [[5, 6], [22, 6], [5, 21], [22, 21]]) if (net[y][x] === "si
 
 /** a prop standing at grid point (x, y) rather than in the middle of tile (x, y) */
 const at = (sprite: string, x: number, y: number, scale: number, flip = false) => props.push({ sprite, gx: x - 0.5, gy: y - 0.5, scale, flip });
-// the plaza: an ornamental lamp on each side of the fountain, a bench in each corner facing it
-for (const [x, y] of [[13.12, 14.88], [14.88, 13.12]]) at("plaza-lamp", x, y, 0.85);
+// the plaza: four ornamental lamps around the fountain, a bench in each corner facing it
+for (const [x, y] of [[12.8, 14], [15.2, 14], [14, 12.8], [14, 15.2]]) at("plaza-lamp", x, y, 0.8);
 at("bench-back", 12.55, 12.55, 0.9);
 at("bench-back", 15.45, 12.55, 0.9);
 at("bench-back", 12.55, 15.45, 0.9, true);
