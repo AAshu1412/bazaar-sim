@@ -1,137 +1,117 @@
-# Bazaar ☕ — Plain & Simple Quickstart Guide
+<p align="center"><img src="bazaar/client/public/logo/logo.svg" width="420" alt="Bazaar"></p>
 
-Welcome to **Bazaar**! This guide tells you in plain, simple English:
-1. What this game is
-2. How to start everything up step-by-step
-3. How to play and test it
-4. How to shut it all down cleanly when you are done
-5. Troubleshooting common issues
+# Bazaar
 
----
+A shop-keeping game on Solana devnet, built for the MagicBlock Solana Blitz v10 hackathon. You run a coffee house in an isometric market town: set your price, keep the shelves stocked, bid for wholesale stock, and read the numbers to beat the other coffee houses. Your shop, its money and its auctions are on-chain; the town around it is simulated in the browser.
 
-## 1. What is Bazaar?
+Program (devnet): [`GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb`](https://explorer.solana.com/address/GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb?cluster=devnet)
 
-Bazaar is a 4-player price-war game where you and 3 rivals run coffee stalls on a busy city intersection.
-- Every second, customers walk into the street and buy from the cheapest coffee stall that still has inventory.
-- You can move your price slider anytime to undercut your opponents — customers will literally pivot mid-walk and come to you!
-- Every minute, a secret sealed-bid auction happens for fresh coffee beans.
-- At the end of 5 minutes, whoever made the most revenue wins the biggest chunk of the prize pot!
+## How it plays
 
----
+- Each shopper wants one thing, shown over their head. The mix shifts through the day (coffee in the morning, food at lunch).
+- Shoppers have a budget and pick among shops selling what they want, weighing price, foot traffic and brand.
+- Your shop pays $20 rent every game day, collected automatically.
+- Rivals restock overnight and raise or cut prices depending on how their day went.
+- Every shop has analytics: sales, market share, shoppers by hour, why they went elsewhere. Yours adds profit and a price advisor.
+- You start at the front door: connect a wallet, approve one session, and your shop is set up on-chain before you walk in.
+- A two-minute animated intro and a 12-chapter story with Uncle Ravi, Mira, Mr. Quill and Madame Fennick teach every part of the game by doing it.
 
-## 2. Requirements
+## 🏗️ MagicBlock Primitives
 
-Before starting, make sure you have installed on your computer:
-- **Node.js** (v18 or v20+ recommended)
-- **Rust & Cargo** (for Solana smart contracts)
-- A modern web browser (Google Chrome or Brave recommended)
+1. **Ephemeral Rollups (ER):** Sub-50ms blocks, 1-second customer transaction ticks and session key repricing with zero base-layer congestion.
+2. **Session Keys:** Gasless, popup-free instant repricing and inventory management delegated to temporary burner keys scoped to this program and checked on every instruction.
+3. **VRF (Verifiable Random Function):** Verifiably random weather and market events (Demand Surge, Supply Shock, Viral Stall), plus the rival bids in every wholesale auction.
+4. **Magic Actions:** Leaving the rollup schedules the payout on Solana in the same step, composing the rollup market with the base-layer SPL Token program.
+5. **Cranks:** Autonomous recurring execution for rent collection: MagicBlock's scheduler charges every shop session its daily rent on the rollup, with no keeper server.
 
----
+### Roadmap
 
-## 3. How to Start the Project (Step-by-Step)
+- **Private ER (PER):** TDX enclave encryption for sealed-bid supply auctions and secret M&A buyout bids to prevent frontrunning and mempool sniping.
+- **Ephemeral SPL:** In-round, high-velocity GD token circulation that settles atomically to base Solana upon season closing bell.
 
-Starting the project requires two simple terminal windows:
+### Verified on devnet (26 Nov 2026)
 
-### Terminal 1: Start the 2.5D Game Screen (Frontend)
+| Step | Layer | Example transaction |
+|---|---|---|
+| Create session | devnet | [3XA1xUBt…](https://explorer.solana.com/tx/3XA1xUBtBcE2vGNvKtSwqQGTMb86siJuSgyWNrQDSVcDoKyk5WU7vR1BLPBpypjk1JWFHxfLqeGb6LUWbfJcd4MX?cluster=devnet) |
+| Delegate shop | devnet | [47HeuYUi…](https://explorer.solana.com/tx/47HeuYUiUgpeBRraGCUJtZJhZSEeZzUyBaDndPtbuuKAsXesUFHGLxHzXvgyvKRUkM51rYHXDcYtFW1DTELKk2yu?cluster=devnet) |
+| Reprice | rollup | [5yMs26PU…](https://explorer.solana.com/tx/5yMs26PU4h9XU68NYdbpESpHEq825iQpMeoBenZ4dkYDm3pExsAoyrHaCpTCBLYcmLteBf1SCyg9R1poAYcsse8r?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
+| Customers pay | rollup | [2zm1Ybgm…](https://explorer.solana.com/tx/2zm1YbgmivjJih2Qd2GeKXKV6Lqp6Y4JgrVNqDxEWnMoivMbtq4y4EW3EQmwwTt3sfsats9FZZJ9kAyd18gz57gE?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
+| Restock | rollup | [5KXiNFmb…](https://explorer.solana.com/tx/5KXiNFmb3vasP9S7mQcT25FxQCfVZdnWj52VQokbkgpS8zc8msUi9UmibjEb8Yf3VPK2MRynJRPPe2mo25QjfbDK?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
+| Auction bid | rollup | [3VAFTMja…](https://explorer.solana.com/tx/3VAFTMjaJi2dYfjn29XJeDNarXwrPBGiPTrGSQ8Q9ncUoXdtUtUMRF7jwFgpn9VJNLmz99iiq26Lq22B2pSRmk8X?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
+| VRF answers the auction | rollup | [4DyrNWw1…](https://explorer.solana.com/tx/4DyrNWw16ihkQcvs753Bf6xAojKwiYY1m14HLm7iysYCM8TFvQYU4b9s5L5bd3pPEeMSRT2sfGvf41CXM5cLNzHC?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
+| City event request | rollup | [4ZFz87fS…](https://explorer.solana.com/tx/4ZFz87fSxaGnuv2D76eGAmJeSRWJydE1wPtob64cDZhLYiMzG3ukPaD9WBNpu6UtCx1iebjDaGkeFicp781DknoQ?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
+| VRF answers the event | rollup | [23uAgDeD…](https://explorer.solana.com/tx/23uAgDeDgoLxF38QzSg9CAhYSwf4DKpjBLePSZ8m2pbVTKnmrTPTrniZc3rR7yiK4rwsJXqzr2DZyjnzGDKf1LUV?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
+| Settle: leave the rollup and schedule a Magic Action | rollup | [5DKBGBbB…](https://explorer.solana.com/tx/5DKBGBbBVY7z45XTCGUrPsLxS3xSpWYuZ1FAU72podF91Kn4Ra3u5bzzi2kgXna1R75zAFaX47y17jn5yttbjpYU?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
+| Magic Action pays out | devnet | [2U72X3td…](https://explorer.solana.com/tx/2U72X3tdMrVihwXTq2j58EdriEtJRhkGD1heZCF9MJ6QexGJvrkLnok9LNrL6fm8z7CBKbdP3fvbhA4iNxHy4JiW?cluster=devnet) |
+| Schedule the rent crank | rollup | [2KCTjBa7…](https://explorer.solana.com/tx/2KCTjBa7GEGrY9YmvS21ZRGFCoLDFkVL5YQNXLFswAkLj1Ba4yauUxQC7zNSXYX1a1hNu7jLcVrvarbgdwb11cZV?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
+| Crank charges rent | rollup | [3inwpnkH…](https://explorer.solana.com/tx/3inwpnkHuCEU6qZD7A8eb1hogtrAVqWgFexgxULUoW2fw1vHrpfEz3HcD9rBNyjnyhB3Pr4Af1vPw89Xj9erg7Dw?cluster=custom&customUrl=https%3A%2F%2Fdevnet.magicblock.app) |
+
+Rollup history is not kept forever, so older rollup links may stop resolving.
+
+## On-chain and off-chain
+
+| On-chain | In the browser |
+|---|---|
+| GD, an SPL token (2 decimals), 10,000 minted when you join; held in program-owned accounts | Shoppers, their budgets and choices |
+| Your plot (3,000 GD) and shop (2,000 GD), price, stock, upgrades | Rival shops and their prices |
+| Customer payments from the town treasury | The day clock and analytics |
+| Wholesale auction and its VRF result | Effect of a city event on demand (the draw itself is on-chain) |
+| Pyth SOL/BTC signals stored every 5 minutes | |
+
+Full mechanics: [GAME_MECHANICS.md](bazaar/GAME_MECHANICS.md).
+
+## Run it
+
+Needs Node 20+, a Solana wallet set to devnet, and a little devnet SOL (the session takes 0.04 SOL for fees).
 
 ```bash
-# 1. Go into the client directory
-cd /home/ashu/projects/ambition/bazaar/client
-
-# 2. Install dependencies (only needed the first time)
+cd bazaar/client
 npm install
-
-# 3. Start the game server
 npm run dev
 ```
 
-You will see:
-```text
-  VITE v5.4.11  ready in 300 ms
+Open http://localhost:5173, watch (or skip) the intro, connect your wallet and start your session.
 
-  ➜  Local:   http://localhost:5173/
-```
-Open **`http://localhost:5173/`** in your browser. You will see the city intersection with your stall (golden ring) and customer pedestrians walking along the street!
+Optional settings in `bazaar/client/.env.local`:
 
----
+| Variable | Purpose |
+|---|---|
+| `PYTH_API_KEY` | Live SOL price and market signals. Injected by the Vite dev/preview proxy, never bundled |
+| `VITE_RPC_URL` | Base RPC (default `https://rpc.magicblock.app/devnet`) |
+| `VITE_ER_URL` | Rollup RPC (default `https://devnet.magicblock.app`) |
+| `VITE_ER=off` | Play on devnet without the rollup (auctions and events need it) |
 
-### Terminal 2: Start the Market Engine & AI Bots (Keeper)
+Static hosting (for example Vercel, root directory `bazaar/client`) serves the game, but the `/hermes` Pyth proxy exists only in the Vite servers, so the price feed needs a serverless replacement there.
 
-*(Optional for solo play, as the browser UI includes simulated bots and auctions, but needed if you want the autonomous background keeper running)*
+## Program
 
-```bash
-# 1. Open a second terminal and go into the keeper directory
-cd /home/ashu/projects/ambition/bazaar/keeper
-
-# 2. Install dependencies (only needed the first time)
-npm install
-
-# 3. Run the autonomous keeper
-npm run dev
-```
-
-The keeper will automatically tick customer demand, trigger random weather events every 30 seconds, and run the 3 AI bot competitors (Undercutter, Margin Hawk, and Aggressive Bidder).
-
----
-
-## 4. How to Play the Game
-
-Once the game is open in your browser (`http://localhost:5173`):
-
-1. **Watch the Customers:** Notice the colorful customer dots walking along the sidewalk towards the coffee stalls.
-2. **Change Your Price:** In the top right panel, move the **price slider** or click **+$0.10 / -$0.10**. 
-   - Watch the floating price billboard above your stall update instantly.
-   - If your price is cheaper than your rivals, walking customers will instantly pivot toward your stall!
-   - Every time a customer buys, you will hear a cash register "ching" and see a floating `+$3.00` green text appear.
-3. **Sealed-Bid Auction (Supply Refill):**
-   - Click the **"Trigger Auction"** button in the top navbar (or wait for the 60-second auto-timer).
-   - Enter your secret bid in GD (e.g., 500 GD) and click **"Encrypt & Submit to Private ER"**.
-   - Watch the 10-second countdown with encrypted flickering glyphs.
-   - At the end of the countdown, the bids reveal one-by-one and a delivery crate drops on the winner's stall (+100 stock).
-4. **Instant 1-Click Bot Mode:** Click **"Solo Demo (Fill Bots)"** at the top anytime to instantly fill empty player slots with 3 smart AI bots.
-5. **City Ledger Ticker:** Look at the bottom bar to see live transaction signatures streaming by with sub-50ms latency timings!
-6. **Sound On/Off:** Click the speaker icon in the top right to mute or unmute sound effects anytime.
-
----
-
-## 5. How to Stop / Close Everything
-
-When you are finished playing:
-
-1. **Stop the Frontend:** In Terminal 1, press:
-   ```text
-   Ctrl + C
-   ```
-2. **Stop the Keeper:** In Terminal 2, press:
-   ```text
-   Ctrl + C
-   ```
-3. Close the browser tab. That is it! Nothing stays running in the background.
-
----
-
-## 6. How to Build & Test the Smart Contract (Optional / For Judges)
-
-If you want to verify the Solana smart contract:
+Anchor 1.2.2, in `bazaar/programs/bazaar/`. Run these from `bazaar/`:
 
 ```bash
-cd /home/ashu/projects/ambition/bazaar
-
-# Check that the Anchor Rust program compiles:
-cargo check
-
-# Run tests:
-anchor test
+cd bazaar
+yarn build                      # anchor build --arch v0 (SBPF v3 is not active on devnet)
+cargo test -p bazaar            # program unit tests
+node client/scripts/gen-idl-spec.mjs   # after changing instructions
+cd client && npm run check      # demand model checks
 ```
 
----
+Upgrade the deployed program from `bazaar/` (needs the upgrade authority):
 
-## 7. Folder Layout Explained Simply
+```bash
+solana program deploy target/deploy/bazaar.so --program-id GT36pVzQ6NczDeJaL317uGsx1fT1SaKpvSvzUjaPqKTb -u https://rpc.magicblock.app/devnet
+```
 
-- **`programs/bazaar/src/lib.rs`**: The Solana smart contract (rules, prices, auctions, settlements).
-- **`client/`**: The visual 2.5D game that runs in your web browser.
-- **`keeper/`**: The background script that moves time forward and runs the 3 AI bots.
-- **`tests/`**: Automated tests that prove the whole 4-player game works.
-- **`README.md`**: Complete technical breakdown of the 6 MagicBlock primitives for hackathon judges.
+To test the rollup locally: run `mb-test-validator` (from `@magicblock-labs/ephemeral-validator`) with Agave 4.2.2 first on `PATH`, then `ephemeral-validator --remotes localhost --listen 127.0.0.1:7799`, and start the client with `VITE_RPC_URL=http://127.0.0.1:8899 VITE_ER_URL=http://127.0.0.1:7799`. The local VRF program charges a fee on its rollup test queue, so VRF was tested on the local base chain with `anchor build --arch v0 -- --features localnet`. Never deploy that build.
 
-Have fun playing Bazaar! ☕
+## Layout
+
+| Path | Contents |
+|---|---|
+| `bazaar/programs/bazaar/src/` | Program: instructions and state |
+| `bazaar/client/src/solana/` | Wallet session, transactions, rollup routing |
+| `bazaar/client/src/engine/` | PixiJS town, map signs, demand model |
+| `bazaar/client/src/components/` | Intro, front door, story, shop, analytics, town board, auction |
+| `bazaar/client/src/story/` | Story script and progress |
+| `bazaar/client/art-src/` | Art and logo generators |
+| `bazaar/keeper/`, `bazaar/tests/` | Left over from an earlier design; they do not work with this program |
